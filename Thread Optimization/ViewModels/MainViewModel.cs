@@ -1,0 +1,1122 @@
+using System.Collections.ObjectModel;
+using System.Windows;
+using System.Windows.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using CoreX.Models;
+using CoreX.Services;
+using CoreX.Views;
+using Microsoft.Win32;
+
+using Application = System.Windows.Application;
+using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
+using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
+
+namespace CoreX.ViewModels;
+
+public partial class MainViewModel : ObservableObject
+{
+    private readonly CpuService _cpuService;
+    private readonly ProcessService _processService;
+    private readonly AffinityService _affinityService;
+    private readonly MonitorService _monitorService;
+    private readonly DispatcherTimer _autoScanTimer;
+    private readonly DispatcherTimer _statsTimer;
+    private readonly DispatcherTimer _monitorTimer;
+    private AppConfig _config;
+
+    [ObservableProperty]
+    private CpuInfo? _cpuInfo;
+
+    [ObservableProperty]
+    private string _cpuName = "检测中...";
+
+    [ObservableProperty]
+    private string _coreSummary = "";
+
+    [ObservableProperty]
+    private string _targetProcessName = "";
+
+    [ObservableProperty]
+    private string _processStatus = "等待中";
+
+    [ObservableProperty]
+    private AppStatus _appStatus = AppStatus.Standby;
+
+    [ObservableProperty]
+    private string _statusText = "STANDBY";
+
+    [ObservableProperty]
+    private Models.BindingMode _selectedBindingMode = Models.BindingMode.Dynamic;
+
+    [ObservableProperty]
+    private CpuCore? _priorityCore;
+
+    [ObservableProperty]
+    private string _logMessage = "";
+
+    [ObservableProperty]
+    private bool _isRunning;
+
+    [ObservableProperty]
+    private bool _isProcessFound;
+
+    [ObservableProperty]
+    private CpuVendor _cpuVendor = CpuVendor.Unknown;
+
+    [ObservableProperty]
+    private bool _isAmd;
+
+    [ObservableProperty]
+    private bool _isIntel;
+
+    [ObservableProperty]
+    private bool _isX3D;
+
+    [ObservableProperty]
+    private bool _isHybrid;
+
+    [ObservableProperty]
+    private bool _hasMutipleCcds;
+
+    [ObservableProperty]
+    private PresetType _selectedPreset = PresetType.Custom;
+
+    [ObservableProperty]
+    private int _selectedCoreCount;
+
+    [ObservableProperty]
+    private bool _autoStartMonitoring;
+
+    [ObservableProperty]
+    private bool _autoApplyOnProcessStart;
+    
+    [ObservableProperty]
+    private ProcessPriorityLevel _selectedPriority = ProcessPriorityLevel.Normal;
+    
+    [ObservableProperty]
+    private bool _applyToChildThreads = true;
+    
+    [ObservableProperty]
+    private string _runTimeText = "00:00:00";
+    
+    [ObservableProperty]
+    private int _applyCount;
+    
+    [ObservableProperty]
+    private ProfileConfig? _selectedProfile;
+
+    // ===== 监控增强属性 =====
+    [ObservableProperty]
+    private float _totalCpuUsage;
+
+    [ObservableProperty]
+    private string _cpuUsageText = "0%";
+
+    [ObservableProperty]
+    private string _cpuFrequencyText = "N/A";
+
+    [ObservableProperty]
+    private string _cpuTemperatureText = "N/A";
+
+    [ObservableProperty]
+    private string _memoryUsageText = "N/A";
+
+    [ObservableProperty]
+    private double _memoryUsagePercent;
+
+    [ObservableProperty]
+    private bool _enableRealtimeMonitor = true;
+
+    [ObservableProperty]
+    private bool _showPerCoreUsage = true;
+
+    // ===== 多进程管理属性 =====
+    [ObservableProperty]
+    private ProcessGroup? _selectedProcessGroup;
+
+    [ObservableProperty]
+    private string _newProcessName = string.Empty;
+
+    [ObservableProperty]
+    private int _totalMonitoredProcesses;
+
+    public ObservableCollection<CpuCore> Cores { get; } = new();
+    public ObservableCollection<ProcessGroup> ProcessGroups { get; } = new();
+    public ObservableCollection<MonitoredProcess> MonitoredProcesses { get; } = new();
+    public ObservableCollection<CpuCore> AvailablePriorityCores { get; } = new();
+    public ObservableCollection<PresetConfig> Presets { get; } = new();
+    public ObservableCollection<ProfileConfig> Profiles { get; } = new();
+    
+    public static IEnumerable<ProcessPriorityLevel> PriorityLevels => Enum.GetValues<ProcessPriorityLevel>();
+
+    public MainViewModel()
+    {
+        _cpuService = new CpuService();
+        _processService = new ProcessService();
+        _affinityService = new AffinityService(_processService);
+        _monitorService = new MonitorService();
+        _config = AppConfig.Load();
+
+        _autoScanTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _autoScanTimer.Tick += AutoScanTimer_Tick;
+        
+        _statsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _statsTimer.Tick += StatsTimer_Tick;
+
+        _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(_config.MonitorRefreshInterval) };
+        _monitorTimer.Tick += MonitorTimer_Tick;
+
+        InitializeCpuInfo();
+        InitializePresets();
+        LoadConfig();
+        LoadProfiles();
+        LoadProcessGroups();
+        UpdateSelectedCoreCount();
+
+        // 启动实时监控
+        if (_config.EnableRealtimeMonitor)
+        {
+            _monitorTimer.Start();
+        }
+
+        if (_config.AutoApplyOnStart && !string.IsNullOrEmpty(TargetProcessName))
+        {
+            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                ApplyConfig();
+            }), DispatcherPriority.Loaded);
+        }
+    }
+    
+    private void StatsTimer_Tick(object? sender, EventArgs e)
+    {
+        if (IsRunning)
+        {
+            var stats = _affinityService.Statistics;
+            var elapsed = DateTime.Now - stats.StartTime;
+            RunTimeText = elapsed.ToString(@"hh\:mm\:ss");
+            ApplyCount = stats.ApplyCount;
+        }
+    }
+
+    /// <summary>
+    /// 实时监控定时器回调
+    /// </summary>
+    private async void MonitorTimer_Tick(object? sender, EventArgs e)
+    {
+        // 在后台线程执行耗时的监控操作
+        await Task.Run(() =>
+        {
+            UpdateCpuMonitorDataAsync();
+        });
+    }
+
+    /// <summary>
+    /// 更新CPU监控数据（后台线程安全）
+    /// </summary>
+    private void UpdateCpuMonitorDataAsync()
+    {
+        try
+        {
+            // 总CPU使用率
+            var totalUsage = _monitorService.GetTotalCpuUsage();
+            
+            // 每核心使用率（可选，性能开销大）
+            float[]? perCoreUsage = null;
+            if (ShowPerCoreUsage)
+            {
+                perCoreUsage = _monitorService.GetPerCoreUsage();
+            }
+
+            // CPU频率（缓存，减少WMI查询）
+            var freqInfo = _monitorService.GetCpuFrequency();
+
+            // 内存使用
+            var memInfo = _monitorService.GetSystemMemory();
+
+            // 在UI线程更新
+            Application.Current.Dispatcher.BeginInvoke(() =>
+            {
+                TotalCpuUsage = totalUsage;
+                CpuUsageText = $"{totalUsage:F0}%";
+                CpuFrequencyText = freqInfo.DisplayText;
+                MemoryUsageText = memInfo.DisplayText;
+                MemoryUsagePercent = memInfo.UsagePercent;
+                
+                if (perCoreUsage != null)
+                {
+                    for (int i = 0; i < Math.Min(perCoreUsage.Length, Cores.Count); i++)
+                    {
+                        Cores[i].Usage = perCoreUsage[i];
+                    }
+                }
+            }, DispatcherPriority.Background);
+        }
+        catch
+        {
+            // 忽略监控错误
+        }
+    }
+
+    private void AutoScanTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!IsRunning && AutoApplyOnProcessStart && !string.IsNullOrWhiteSpace(TargetProcessName))
+        {
+            var processes = _processService.FindProcessesByName(TargetProcessName);
+            if (processes.Count > 0)
+            {
+                LogMessage = $"检测到 {TargetProcessName}，自动应用";
+                ApplyConfig();
+            }
+        }
+    }
+
+    partial void OnAutoApplyOnProcessStartChanged(bool value)
+    {
+        if (value)
+        {
+            _autoScanTimer.Start();
+            LogMessage = "已启用进程自动监控";
+        }
+        else
+        {
+            _autoScanTimer.Stop();
+            LogMessage = "已禁用进程自动监控";
+        }
+    }
+
+    private void InitializeCpuInfo()
+    {
+        try
+        {
+            CpuInfo = _cpuService.GetCpuInfo();
+            CpuName = CpuInfo.Name;
+            CoreSummary = _cpuService.GetCoreSummary(CpuInfo);
+            CpuVendor = CpuInfo.Vendor;
+            IsAmd = CpuInfo.Vendor == CpuVendor.AMD;
+            IsIntel = CpuInfo.Vendor == CpuVendor.Intel;
+            IsX3D = CpuInfo.IsX3D;
+            IsHybrid = CpuInfo.IsHybridArchitecture;
+            HasMutipleCcds = CpuInfo.CcdCount > 1;
+
+            Cores.Clear();
+            AvailablePriorityCores.Clear();
+
+            foreach (var core in CpuInfo.Cores)
+            {
+                core.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(CpuCore.IsSelected))
+                    {
+                        UpdateSelectedCoreCount();
+                    }
+                };
+                Cores.Add(core);
+                AvailablePriorityCores.Add(core);
+            }
+
+            if (AvailablePriorityCores.Count > 0)
+            {
+                PriorityCore = AvailablePriorityCores[0];
+            }
+        }
+        catch (Exception ex)
+        {
+            CpuName = "CPU 检测失败";
+            LogMessage = $"错误: {ex.Message}";
+        }
+    }
+
+    private void UpdateSelectedCoreCount()
+    {
+        SelectedCoreCount = Cores.Count(c => c.IsSelected);
+    }
+
+    private void InitializePresets()
+    {
+        Presets.Clear();
+        
+        Presets.Add(new PresetConfig 
+        { 
+            Name = "游戏模式",
+            Icon = "\uE7FC",
+            Description = "优先使用高性能核心",
+            Type = PresetType.Gaming 
+        });
+        
+        Presets.Add(new PresetConfig 
+        { 
+            Name = "省电模式",
+            Icon = "\uEBB5",
+            Description = "优先使用低功耗核心",
+            Type = PresetType.PowerSave 
+        });
+        
+        Presets.Add(new PresetConfig 
+        { 
+            Name = "生产力模式",
+            Icon = "\uE8A5",
+            Description = "使用全部核心",
+            Type = PresetType.Productivity 
+        });
+        
+        if (IsAmd && HasMutipleCcds)
+        {
+            Presets.Add(new PresetConfig 
+            { 
+                Name = "单CCD模式",
+                Icon = "\uE950",
+                Description = "仅使用CCD0（低延迟）",
+                Type = PresetType.SingleCcd 
+            });
+        }
+    }
+
+    private void LoadConfig()
+    {
+        if (!string.IsNullOrEmpty(_config.TargetProcessName))
+        {
+            TargetProcessName = _config.TargetProcessName;
+        }
+
+        if (_config.SelectedCoreIndices.Count > 0)
+        {
+            foreach (var core in Cores)
+            {
+                core.IsSelected = _config.SelectedCoreIndices.Contains(core.Index);
+            }
+        }
+
+        if (_config.PriorityCoreIndex.HasValue)
+        {
+            PriorityCore = Cores.FirstOrDefault(c => c.Index == _config.PriorityCoreIndex.Value);
+        }
+
+        SelectedBindingMode = _config.BindingMode;
+        AutoStartMonitoring = _config.AutoApplyOnStart;
+        SelectedPriority = _config.ProcessPriority;
+        ApplyToChildThreads = _config.ApplyToChildThreads;
+    }
+    
+    private void LoadProfiles()
+    {
+        Profiles.Clear();
+        foreach (var profile in _config.Profiles)
+        {
+            Profiles.Add(profile);
+        }
+    }
+
+    /// <summary>
+    /// 加载进程组配置
+    /// </summary>
+    private void LoadProcessGroups()
+    {
+        ProcessGroups.Clear();
+        foreach (var groupConfig in _config.ProcessGroups)
+        {
+            var group = new ProcessGroup
+            {
+                Id = groupConfig.Id,
+                Name = groupConfig.Name,
+                ProcessNames = groupConfig.ProcessNames,
+                SelectedCoreIndices = groupConfig.SelectedCoreIndices,
+                PriorityCoreIndex = groupConfig.PriorityCoreIndex,
+                BindingMode = groupConfig.BindingMode,
+                ProcessPriority = groupConfig.ProcessPriority,
+                IsEnabled = groupConfig.IsEnabled,
+                CreatedAt = groupConfig.CreatedAt
+            };
+            ProcessGroups.Add(group);
+        }
+
+        EnableRealtimeMonitor = _config.EnableRealtimeMonitor;
+        ShowPerCoreUsage = _config.ShowPerCoreUsage;
+    }
+
+    /// <summary>
+    /// 保存进程组配置
+    /// </summary>
+    private void SaveProcessGroups()
+    {
+        _config.ProcessGroups.Clear();
+        foreach (var group in ProcessGroups)
+        {
+            _config.ProcessGroups.Add(new ProcessGroupConfig
+            {
+                Id = group.Id,
+                Name = group.Name,
+                ProcessNames = group.ProcessNames,
+                SelectedCoreIndices = group.SelectedCoreIndices,
+                PriorityCoreIndex = group.PriorityCoreIndex,
+                BindingMode = group.BindingMode,
+                ProcessPriority = group.ProcessPriority,
+                IsEnabled = group.IsEnabled,
+                CreatedAt = group.CreatedAt
+            });
+        }
+        _config.EnableRealtimeMonitor = EnableRealtimeMonitor;
+        _config.ShowPerCoreUsage = ShowPerCoreUsage;
+        _config.Save();
+    }
+
+    private void SaveConfig()
+    {
+        _config.TargetProcessName = TargetProcessName;
+        _config.SelectedCoreIndices = Cores.Where(c => c.IsSelected).Select(c => c.Index).ToList();
+        _config.PriorityCoreIndex = PriorityCore?.Index;
+        _config.BindingMode = SelectedBindingMode;
+        _config.AutoApplyOnStart = AutoStartMonitoring;
+        _config.ProcessPriority = SelectedPriority;
+        _config.ApplyToChildThreads = ApplyToChildThreads;
+        _config.Save();
+    }
+
+    [RelayCommand]
+    private void ApplyPreset(PresetType presetType)
+    {
+        SelectedPreset = presetType;
+
+        switch (presetType)
+        {
+            case PresetType.Gaming:
+                ApplyGamingPreset();
+                break;
+            case PresetType.PowerSave:
+                ApplyPowerSavePreset();
+                break;
+            case PresetType.Productivity:
+                SelectAll();
+                break;
+            case PresetType.SingleCcd:
+                SelectCcd0();
+                break;
+        }
+        
+        UpdateSelectedCoreCount();
+    }
+
+    private void ApplyGamingPreset()
+    {
+        SelectedPriority = ProcessPriorityLevel.High;
+        
+        if (IsIntel && IsHybrid)
+        {
+            foreach (var core in Cores)
+            {
+                core.IsSelected = core.CoreType == CoreType.PCore;
+            }
+            LogMessage = "游戏模式：P核 + 高优先级";
+        }
+        else if (IsAmd && IsX3D)
+        {
+            foreach (var core in Cores)
+            {
+                core.IsSelected = core.CoreType == CoreType.VCache;
+            }
+            LogMessage = "游戏模式：3D V-Cache 核心 + 高优先级";
+        }
+        else if (IsAmd && HasMutipleCcds)
+        {
+            foreach (var core in Cores)
+            {
+                core.IsSelected = core.CcdId == 0;
+            }
+            LogMessage = "游戏模式：CCD0 + 高优先级";
+        }
+        else
+        {
+            SelectAll();
+            LogMessage = "游戏模式：全核心 + 高优先级";
+        }
+
+        SelectedBindingMode = Models.BindingMode.Dynamic;
+    }
+
+    private void ApplyPowerSavePreset()
+    {
+        SelectedPriority = ProcessPriorityLevel.BelowNormal;
+        
+        if (IsIntel && IsHybrid)
+        {
+            foreach (var core in Cores)
+            {
+                core.IsSelected = core.CoreType == CoreType.ECore;
+            }
+            LogMessage = "省电模式：E核 + 低优先级";
+        }
+        else if (IsAmd && HasMutipleCcds)
+        {
+            foreach (var core in Cores)
+            {
+                core.IsSelected = core.CcdId == 0 && !core.IsHyperThread;
+            }
+            LogMessage = "省电模式：CCD0 主线程 + 低优先级";
+        }
+        else
+        {
+            int count = 0;
+            int halfCount = Cores.Count / 2;
+            foreach (var core in Cores)
+            {
+                core.IsSelected = count++ < halfCount;
+            }
+            LogMessage = "省电模式：半数核心 + 低优先级";
+        }
+
+        SelectedBindingMode = Models.BindingMode.D3PowerSave;
+    }
+
+    [RelayCommand]
+    private void SelectAllPCores()
+    {
+        foreach (var core in Cores) core.IsSelected = core.CoreType == CoreType.PCore;
+        LogMessage = "已选择所有 P 核";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    [RelayCommand]
+    private void SelectAllECores()
+    {
+        foreach (var core in Cores) core.IsSelected = core.CoreType == CoreType.ECore;
+        LogMessage = "已选择所有 E 核";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    [RelayCommand]
+    private void SelectVCacheCores()
+    {
+        foreach (var core in Cores) core.IsSelected = core.CoreType == CoreType.VCache;
+        LogMessage = "已选择所有 3D V-Cache 核心";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    [RelayCommand]
+    private void SelectStandardCores()
+    {
+        foreach (var core in Cores) core.IsSelected = core.CoreType == CoreType.Standard;
+        LogMessage = "已选择所有标准核心";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    [RelayCommand]
+    private void SelectCcd0()
+    {
+        foreach (var core in Cores) core.IsSelected = core.CcdId == 0;
+        LogMessage = "已选择 CCD0";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    [RelayCommand]
+    private void SelectCcd1()
+    {
+        foreach (var core in Cores) core.IsSelected = core.CcdId == 1;
+        LogMessage = "已选择 CCD1";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    [RelayCommand]
+    private void SelectAll()
+    {
+        foreach (var core in Cores) core.IsSelected = true;
+        LogMessage = "已全选";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    [RelayCommand]
+    private void ClearSelection()
+    {
+        foreach (var core in Cores) core.IsSelected = false;
+        LogMessage = "已清空";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    [RelayCommand]
+    private void ApplySelection()
+    {
+        var selectedCores = Cores.Where(c => c.IsSelected).ToList();
+        if (selectedCores.Count == 0)
+        {
+            LogMessage = "请至少选择一个核心";
+            return;
+        }
+
+        var mask = _affinityService.CalculateAffinityMask(selectedCores);
+        LogMessage = $"掩码: 0x{mask:X}，{selectedCores.Count} 核心";
+        SaveConfig();
+    }
+
+    [RelayCommand]
+    private void ScanProcess()
+    {
+        if (string.IsNullOrWhiteSpace(TargetProcessName))
+        {
+            ProcessStatus = "请输入进程名";
+            return;
+        }
+
+        var processes = _processService.FindProcessesByName(TargetProcessName);
+        
+        if (processes.Count > 0)
+        {
+            ProcessStatus = $"找到 {processes.Count} 个";
+            IsProcessFound = true;
+        }
+        else
+        {
+            ProcessStatus = "等待中";
+            IsProcessFound = false;
+        }
+    }
+
+    [RelayCommand]
+    private void BrowseProcess()
+    {
+        var selector = new ProcessSelectorWindow
+        {
+            Owner = Application.Current.MainWindow
+        };
+
+        if (selector.ShowDialog() == true && !string.IsNullOrEmpty(selector.SelectedProcessName))
+        {
+            TargetProcessName = selector.SelectedProcessName;
+            ScanProcess();
+            SaveConfig();
+        }
+    }
+
+    [RelayCommand]
+    private void ApplyConfig()
+    {
+        if (string.IsNullOrWhiteSpace(TargetProcessName))
+        {
+            LogMessage = "请输入目标进程名";
+            return;
+        }
+
+        var selectedCores = Cores.Where(c => c.IsSelected).ToList();
+        if (selectedCores.Count == 0)
+        {
+            LogMessage = "请至少选择一个核心";
+            return;
+        }
+
+        var affinityMask = _affinityService.CalculateAffinityMask(selectedCores);
+        int? priorityCoreIndex = PriorityCore?.Index;
+
+        _affinityService.StartMonitoring(
+            TargetProcessName,
+            affinityMask,
+            SelectedBindingMode,
+            priorityCoreIndex,
+            SelectedPriority,
+            ApplyToChildThreads,
+            _config.MonitorInterval,
+            status => Application.Current.Dispatcher.Invoke(() => LogMessage = status),
+            found => Application.Current.Dispatcher.Invoke(() =>
+            {
+                IsProcessFound = found;
+                ProcessStatus = found ? "运行中" : "等待中";
+            })
+        );
+
+        IsRunning = true;
+        AppStatus = AppStatus.Running;
+        StatusText = "RUNNING";
+        _statsTimer.Start();
+        LogMessage = $"监控 {TargetProcessName}，{selectedCores.Count} 核心，{GetPriorityName(SelectedPriority)}";
+        
+        SaveConfig();
+    }
+
+    [RelayCommand]
+    private void Stop()
+    {
+        _affinityService.StopMonitoring();
+        _statsTimer.Stop();
+        
+        IsRunning = false;
+        AppStatus = AppStatus.Standby;
+        StatusText = "STANDBY";
+        ProcessStatus = "已停止";
+        LogMessage = $"已停止，运行 {RunTimeText}，应用 {ApplyCount} 次";
+    }
+
+    [RelayCommand]
+    private void ToggleAutoStart()
+    {
+        AutoStartMonitoring = !AutoStartMonitoring;
+        _config.AutoApplyOnStart = AutoStartMonitoring;
+        _config.Save();
+        LogMessage = AutoStartMonitoring ? "已启用自启" : "已禁用自启";
+    }
+    
+    [RelayCommand]
+    private void SaveProfile()
+    {
+        if (string.IsNullOrWhiteSpace(TargetProcessName))
+        {
+            LogMessage = "请先设置进程名";
+            return;
+        }
+        
+        var profile = new ProfileConfig
+        {
+            Name = $"{TargetProcessName} 配置",
+            ProcessName = TargetProcessName,
+            SelectedCoreIndices = Cores.Where(c => c.IsSelected).Select(c => c.Index).ToList(),
+            PriorityCoreIndex = PriorityCore?.Index,
+            BindingMode = SelectedBindingMode,
+            ProcessPriority = SelectedPriority,
+            CreatedAt = DateTime.Now
+        };
+        
+        Profiles.Add(profile);
+        _config.Profiles.Add(profile);
+        _config.Save();
+        
+        LogMessage = $"已保存配置: {profile.Name}";
+    }
+    
+    [RelayCommand]
+    private void LoadProfile(ProfileConfig? profile)
+    {
+        if (profile == null) return;
+        
+        TargetProcessName = profile.ProcessName;
+        
+        foreach (var core in Cores)
+        {
+            core.IsSelected = profile.SelectedCoreIndices.Contains(core.Index);
+        }
+        
+        if (profile.PriorityCoreIndex.HasValue)
+        {
+            PriorityCore = Cores.FirstOrDefault(c => c.Index == profile.PriorityCoreIndex.Value);
+        }
+        
+        SelectedBindingMode = profile.BindingMode;
+        SelectedPriority = profile.ProcessPriority;
+        
+        UpdateSelectedCoreCount();
+        LogMessage = $"已加载: {profile.Name}";
+    }
+    
+    [RelayCommand]
+    private void DeleteProfile(ProfileConfig? profile)
+    {
+        if (profile == null) return;
+        
+        Profiles.Remove(profile);
+        _config.Profiles.Remove(profile);
+        _config.Save();
+        
+        LogMessage = $"已删除: {profile.Name}";
+    }
+    
+    [RelayCommand]
+    private void ExportConfig()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Filter = "JSON 文件|*.json",
+            FileName = "test_config.json"
+        };
+        
+        if (dialog.ShowDialog() == true)
+        {
+            try
+            {
+                var json = _config.Export();
+                System.IO.File.WriteAllText(dialog.FileName, json);
+                LogMessage = "配置已导出";
+            }
+            catch (Exception ex)
+            {
+                LogMessage = $"导出失败: {ex.Message}";
+            }
+        }
+    }
+    
+    // ===== 多进程管理命令 =====
+
+    [RelayCommand]
+    private void CreateProcessGroup()
+    {
+        var selectedCores = Cores.Where(c => c.IsSelected).Select(c => c.Index).ToList();
+        if (selectedCores.Count == 0)
+        {
+            LogMessage = "请先选择核心";
+            return;
+        }
+
+        var group = new ProcessGroup
+        {
+            Name = $"进程组 {ProcessGroups.Count + 1}",
+            ProcessNames = new List<string>(),
+            SelectedCoreIndices = selectedCores,
+            PriorityCoreIndex = PriorityCore?.Index,
+            BindingMode = SelectedBindingMode,
+            ProcessPriority = SelectedPriority
+        };
+
+        ProcessGroups.Add(group);
+        SelectedProcessGroup = group;
+        SaveProcessGroups();
+        LogMessage = $"已创建进程组: {group.Name}";
+    }
+
+    [RelayCommand]
+    private void DeleteProcessGroup(ProcessGroup? group)
+    {
+        if (group == null) return;
+
+        if (group.IsRunning)
+        {
+            StopProcessGroup(group);
+        }
+
+        ProcessGroups.Remove(group);
+        SaveProcessGroups();
+        LogMessage = $"已删除进程组: {group.Name}";
+    }
+
+    [RelayCommand]
+    private void AddProcessToGroup()
+    {
+        if (SelectedProcessGroup == null)
+        {
+            LogMessage = "请先选择进程组";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(NewProcessName))
+        {
+            LogMessage = "请输入进程名";
+            return;
+        }
+
+        var processName = NewProcessName.Trim();
+        if (!SelectedProcessGroup.ProcessNames.Contains(processName, StringComparer.OrdinalIgnoreCase))
+        {
+            SelectedProcessGroup.ProcessNames.Add(processName);
+            SaveProcessGroups();
+            LogMessage = $"已添加进程: {processName}";
+        }
+        else
+        {
+            LogMessage = "进程已存在";
+        }
+
+        NewProcessName = string.Empty;
+    }
+
+    [RelayCommand]
+    private void RemoveProcessFromGroup(string? processName)
+    {
+        if (SelectedProcessGroup == null || string.IsNullOrEmpty(processName)) return;
+
+        SelectedProcessGroup.ProcessNames.Remove(processName);
+        SaveProcessGroups();
+        LogMessage = $"已移除进程: {processName}";
+    }
+
+    [RelayCommand]
+    private void StartProcessGroup(ProcessGroup? group)
+    {
+        if (group == null || group.ProcessNames.Count == 0)
+        {
+            LogMessage = "进程组为空";
+            return;
+        }
+
+        var affinityMask = _affinityService.CalculateAffinityMask(
+            Cores.Where(c => group.SelectedCoreIndices.Contains(c.Index)));
+
+        // 为每个进程名启动监控
+        foreach (var processName in group.ProcessNames)
+        {
+            var processes = _processService.FindProcessesByName(processName);
+            foreach (var proc in processes)
+            {
+                // 添加到监控列表
+                if (!MonitoredProcesses.Any(p => p.ProcessId == proc.ProcessId))
+                {
+                    MonitoredProcesses.Add(new MonitoredProcess
+                    {
+                        ProcessId = proc.ProcessId,
+                        ProcessName = proc.ProcessName,
+                        WindowTitle = proc.WindowTitle,
+                        GroupId = group.Id,
+                        StartTime = DateTime.Now
+                    });
+                }
+
+                // 应用亲和性
+                _affinityService.SetProcessAffinity(proc.ProcessId, affinityMask);
+                _affinityService.SetProcessPriority(proc.ProcessId, group.ProcessPriority);
+            }
+        }
+
+        group.IsRunning = true;
+        group.StatusText = "运行中";
+        group.DetectedProcessCount = MonitoredProcesses.Count(p => p.GroupId == group.Id);
+        SaveProcessGroups();
+        LogMessage = $"已启动进程组: {group.Name}";
+    }
+
+    [RelayCommand]
+    private void StopProcessGroup(ProcessGroup? group)
+    {
+        if (group == null) return;
+
+        // 移除该组的监控进程
+        var toRemove = MonitoredProcesses.Where(p => p.GroupId == group.Id).ToList();
+        foreach (var proc in toRemove)
+        {
+            MonitoredProcesses.Remove(proc);
+        }
+
+        group.IsRunning = false;
+        group.StatusText = "已停止";
+        group.DetectedProcessCount = 0;
+        SaveProcessGroups();
+        LogMessage = $"已停止进程组: {group.Name}";
+    }
+
+    [RelayCommand]
+    private void StartAllProcessGroups()
+    {
+        foreach (var group in ProcessGroups.Where(g => g.IsEnabled && !g.IsRunning))
+        {
+            StartProcessGroup(group);
+        }
+        LogMessage = "已启动所有进程组";
+    }
+
+    [RelayCommand]
+    private void StopAllProcessGroups()
+    {
+        foreach (var group in ProcessGroups.Where(g => g.IsRunning))
+        {
+            StopProcessGroup(group);
+        }
+        LogMessage = "已停止所有进程组";
+    }
+
+    [RelayCommand]
+    private void ToggleRealtimeMonitor()
+    {
+        EnableRealtimeMonitor = !EnableRealtimeMonitor;
+        
+        if (EnableRealtimeMonitor)
+        {
+            _monitorTimer.Start();
+            LogMessage = "已启用实时监控";
+        }
+        else
+        {
+            _monitorTimer.Stop();
+            LogMessage = "已禁用实时监控";
+        }
+        
+        _config.EnableRealtimeMonitor = EnableRealtimeMonitor;
+        _config.Save();
+    }
+
+    [RelayCommand]
+    private void TogglePerCoreUsage()
+    {
+        ShowPerCoreUsage = !ShowPerCoreUsage;
+        _config.ShowPerCoreUsage = ShowPerCoreUsage;
+        _config.Save();
+        LogMessage = ShowPerCoreUsage ? "显示每核心使用率" : "隐藏每核心使用率";
+    }
+
+    [RelayCommand]
+    private void ImportConfig()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "JSON 文件|*.json"
+        };
+        
+        if (dialog.ShowDialog() == true)
+        {
+            try
+            {
+                var json = System.IO.File.ReadAllText(dialog.FileName);
+                var imported = AppConfig.Import(json);
+                
+                if (imported != null)
+                {
+                    _config = imported;
+                    LoadConfig();
+                    LoadProfiles();
+                    _config.Save();
+                    LogMessage = "配置已导入";
+                }
+                else
+                {
+                    LogMessage = "导入失败：无效的配置文件";
+                }
+            }
+            catch (Exception ex)
+            {
+                LogMessage = $"导入失败: {ex.Message}";
+            }
+        }
+    }
+
+    public void ToggleMonitoring()
+    {
+        if (IsRunning) Stop();
+        else ApplyConfig();
+    }
+
+    private string GetPriorityName(ProcessPriorityLevel priority)
+    {
+        return priority switch
+        {
+            ProcessPriorityLevel.Idle => "空闲",
+            ProcessPriorityLevel.BelowNormal => "低",
+            ProcessPriorityLevel.Normal => "正常",
+            ProcessPriorityLevel.AboveNormal => "较高",
+            ProcessPriorityLevel.High => "高",
+            ProcessPriorityLevel.RealTime => "实时",
+            _ => "未知"
+        };
+    }
+    
+    private string GetBindingModeName(Models.BindingMode mode)
+    {
+        return mode switch
+        {
+            Models.BindingMode.Dynamic => "动态",
+            Models.BindingMode.Static => "静态",
+            Models.BindingMode.D2 => "D2",
+            Models.BindingMode.D3PowerSave => "D3省电",
+            _ => "未知"
+        };
+    }
+
+    public void Cleanup()
+    {
+        _autoScanTimer.Stop();
+        _statsTimer.Stop();
+        _monitorTimer.Stop();
+        _affinityService.StopMonitoring();
+        _monitorService.Dispose();
+        SaveConfig();
+        SaveProcessGroups();
+    }
+}
