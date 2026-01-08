@@ -8,21 +8,21 @@
 
 > 一款专为 Windows 设计的进程 CPU 亲和性管理工具，智能识别 Intel/AMD 混合架构，优化游戏与生产力应用的核心调度策略。
 
-## ✨ 功能特性
+## <img src="https://img.shields.io/badge/-功能特性-blue?style=flat-square" alt="功能特性"/>
 
-### 🔍 智能识别
+### <img src="https://img.shields.io/badge/-智能识别-6c5ce7?style=flat-square" alt="智能识别"/>
 - **Intel 混合架构**：自动识别 P核（性能核心）与 E核（能效核心）
 - **AMD 多 CCD 架构**：支持 CCD0/CCD1 独立调度
 - **AMD X3D 处理器**：精准识别 3D V-Cache 核心
 - **超线程/SMT 识别**：区分物理核心与逻辑线程
 
-### ⚡ 核心调度
+### <img src="https://img.shields.io/badge/-核心调度-00b894?style=flat-square" alt="核心调度"/>
 - **进程绑定**：将目标进程限制在指定 CPU 核心上运行
 - **优先核心**：设置首选调度核心
 - **进程优先级**：调整目标进程的系统优先级
 - **子线程同步**：自动将配置应用到进程的所有子线程
 
-### 🎮 绑定模式
+### <img src="https://img.shields.io/badge/-绑定模式-e17055?style=flat-square" alt="绑定模式"/>
 | 模式 | 说明 |
 |------|------|
 | 动态 | 允许系统在选定核心间自由调度 |
@@ -30,19 +30,19 @@
 | D2 | 智能动态调度（Beta） |
 | D3 省电 | 优先使用低功耗核心（Beta） |
 
-### 📊 实时监控
+### <img src="https://img.shields.io/badge/-实时监控-fdcb6e?style=flat-square" alt="实时监控"/>
 - CPU 总体使用率
 - 每核心使用率可视化
 - CPU 频率监控
 - 系统内存使用情况
 
-### 📁 配置管理
+### <img src="https://img.shields.io/badge/-配置管理-0984e3?style=flat-square" alt="配置管理"/>
 - **配置档案**：保存/加载多套配置方案
 - **进程组**：批量管理多个进程的核心分配
 - **导入/导出**：JSON 格式配置文件，便于备份迁移
 - **快速预设**：游戏模式、省电模式、生产力模式一键切换
 
-## 🖥️ 支持的处理器
+## <img src="https://img.shields.io/badge/-支持的处理器-74b9ff?style=flat-square" alt="支持的处理器"/>
 
 ### Intel（第 12-15 代 & Core Ultra）
 
@@ -65,17 +65,17 @@
 | 5000X3D | 5800X3D, 5700X3D | Zen 3 + 3D V-Cache |
 | Threadripper | 7980X, 7970X, 5995WX | HEDT |
 
-## 🎨 界面预览
+## <img src="https://img.shields.io/badge/-界面预览-a29bfe?style=flat-square" alt="界面预览"/>
 
 ### 核心类型颜色标识
 | 颜色 | 类型 | 说明 |
 |:----:|------|------|
-| 🔵 | P核 | Intel 性能核心 |
-| 🟢 | E核 | Intel 能效核心 |
-| 🟠 | 3D | AMD 3D V-Cache 核心 |
-| 🟣 | 标准 | AMD 标准核心 |
+| <img src="https://img.shields.io/badge/-_-007AFF?style=flat-square" alt="蓝色"/> | P核 | Intel 性能核心 |
+| <img src="https://img.shields.io/badge/-_-30D158?style=flat-square" alt="绿色"/> | E核 | Intel 能效核心 |
+| <img src="https://img.shields.io/badge/-_-FF9F0A?style=flat-square" alt="橙色"/> | 3D | AMD 3D V-Cache 核心 |
+| <img src="https://img.shields.io/badge/-_-BF5AF2?style=flat-square" alt="紫色"/> | 标准 | AMD 标准核心 |
 
-## 📦 安装与运行
+## <img src="https://img.shields.io/badge/-安装与运行-55efc4?style=flat-square" alt="安装与运行"/>
 
 ### 系统要求
 - Windows 10/11 (x64)
@@ -89,7 +89,7 @@
 4. 选择要分配的 CPU 核心
 5. 点击「启动」开始监控
 
-## 🛠️ 从源码编译
+## <img src="https://img.shields.io/badge/-从源码编译-fab1a0?style=flat-square" alt="从源码编译"/>
 
 ### 环境准备
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
@@ -120,7 +120,7 @@ dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
 2. 选择 `Release` 配置
 3. 生成 → 生成解决方案（Ctrl+Shift+B）
 
-## 🎯 使用场景与建议
+## <img src="https://img.shields.io/badge/-使用场景与建议-81ecec?style=flat-square" alt="使用场景与建议"/>
 
 ### 游戏优化
 
@@ -142,7 +142,7 @@ dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
 - 渲染/编译 → 使用全部核心
 - 日常办公 → D3 省电模式减少功耗
 
-## 📂 项目结构
+## <img src="https://img.shields.io/badge/-项目结构-dfe6e9?style=flat-square" alt="项目结构"/>
 
 ```
 Thread Optimization/
@@ -167,7 +167,7 @@ Thread Optimization/
     └── Styles/                      # UI 样式
 ```
 
-## 🔧 技术栈
+## <img src="https://img.shields.io/badge/-技术栈-636e72?style=flat-square" alt="技术栈"/>
 
 | 组件 | 技术 |
 |------|------|
@@ -176,24 +176,23 @@ Thread Optimization/
 | UI 工具包 | CommunityToolkit.Mvvm |
 | 系统 API | System.Management, Win32 API |
 
-## ⚠️ 注意事项
+## <img src="https://img.shields.io/badge/-注意事项-d63031?style=flat-square" alt="注意事项"/>
 
 1. **管理员权限**：修改进程亲和性和优先级必须以管理员身份运行
 2. **系统进程**：部分受保护的系统进程无法修改亲和性
 3. **CPU 识别**：未知型号将使用估算值，可能不完全准确
 4. **X3D 识别**：V-Cache 核心识别基于 CCD 位置规则
 
-## 📄 许可证
+## <img src="https://img.shields.io/badge/-许可证-00cec9?style=flat-square" alt="许可证"/>
 
 本项目基于 [MIT License](LICENSE) 开源。
 
-## 🙏 致谢
+## <img src="https://img.shields.io/badge/-致谢-fd79a8?style=flat-square" alt="致谢"/>
 
-- 灵感来源于 Process Lasso、CoreX-Beta 等 CPU 调度工具
 - [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) 提供 MVVM 基础设施
 
 ---
 
 <p align="center">
-  <sub>Made with ❤️ for PC enthusiasts</sub>
+  <sub>Made with care for PC enthusiasts</sub>
 </p>
