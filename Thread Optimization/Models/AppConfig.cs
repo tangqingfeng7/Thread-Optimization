@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.Json;
 
-namespace CoreX.Models;
+namespace ThreadOptimization.Models;
 
 /// <summary>
 /// 应用配置

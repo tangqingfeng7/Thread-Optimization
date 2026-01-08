@@ -1,4 +1,4 @@
-namespace CoreX.Models;
+namespace ThreadOptimization.Models;
 
 /// <summary>
 /// 核心绑定模式

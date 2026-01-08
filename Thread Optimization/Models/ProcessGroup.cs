@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace CoreX.Models;
+namespace ThreadOptimization.Models;
 
 /// <summary>
 /// 进程组 - 支持多进程同时管理

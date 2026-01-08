@@ -1,8 +1,8 @@
 using System.Windows;
-using CoreX.Services;
-using CoreX.ViewModels;
+using ThreadOptimization.Services;
+using ThreadOptimization.ViewModels;
 
-namespace CoreX;
+namespace ThreadOptimization;
 
 /// <summary>
 /// MainWindow.xaml 的交互逻辑

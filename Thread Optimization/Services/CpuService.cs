@@ -1,8 +1,8 @@
 using System.Management;
 using System.Runtime.InteropServices;
-using CoreX.Models;
+using ThreadOptimization.Models;
 
-namespace CoreX.Services;
+namespace ThreadOptimization.Services;
 
 /// <summary>
 /// CPU 信息服务
