@@ -20,6 +20,8 @@ public partial class MainViewModel : ObservableObject
     private readonly ProcessService _processService;
     private readonly AffinityService _affinityService;
     private readonly MonitorService _monitorService;
+    private readonly GameService _gameService;
+    private readonly NumaService _numaService;
     private readonly DispatcherTimer _autoScanTimer;
     private readonly DispatcherTimer _statsTimer;
     private readonly DispatcherTimer _monitorTimer;
@@ -141,12 +143,43 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _totalMonitoredProcesses;
 
+    // ===== 游戏优化属性 =====
+    [ObservableProperty]
+    private GameInfo? _selectedGame;
+
+    [ObservableProperty]
+    private bool _isGameMonitorEnabled = true;
+
+    [ObservableProperty]
+    private bool _isScanningGames;
+
+    [ObservableProperty]
+    private int _runningGamesCount;
+
+    // ===== NUMA 优化属性 =====
+    [ObservableProperty]
+    private bool _isNumaSupported;
+
+    [ObservableProperty]
+    private string _numaTopology = "";
+
+    [ObservableProperty]
+    private NumaNodeInfo? _selectedNumaNode;
+
+    [ObservableProperty]
+    private bool _enableNumaOptimization = true;
+
+    [ObservableProperty]
+    private string? _crossNumaWarning;
+
     public ObservableCollection<CpuCore> Cores { get; } = new();
     public ObservableCollection<ProcessGroup> ProcessGroups { get; } = new();
     public ObservableCollection<MonitoredProcess> MonitoredProcesses { get; } = new();
     public ObservableCollection<CpuCore> AvailablePriorityCores { get; } = new();
     public ObservableCollection<PresetConfig> Presets { get; } = new();
     public ObservableCollection<ProfileConfig> Profiles { get; } = new();
+    public ObservableCollection<GameInfo> Games { get; } = new();
+    public ObservableCollection<NumaNodeInfo> NumaNodes { get; } = new();
     
     public static IEnumerable<ProcessPriorityLevel> PriorityLevels => Enum.GetValues<ProcessPriorityLevel>();
 
@@ -156,6 +189,8 @@ public partial class MainViewModel : ObservableObject
         _processService = new ProcessService();
         _affinityService = new AffinityService(_processService);
         _monitorService = new MonitorService();
+        _gameService = new GameService(_processService);
+        _numaService = new NumaService();
         _config = AppConfig.Load();
 
         _autoScanTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
@@ -169,9 +204,12 @@ public partial class MainViewModel : ObservableObject
 
         InitializeCpuInfo();
         InitializePresets();
+        InitializeNuma();
+        InitializeGameService();
         LoadConfig();
         LoadProfiles();
         LoadProcessGroups();
+        LoadGames();
         UpdateSelectedCoreCount();
 
         // 启动实时监控
@@ -1109,6 +1147,264 @@ public partial class MainViewModel : ObservableObject
         };
     }
 
+    // ===== NUMA 初始化与命令 =====
+
+    private void InitializeNuma()
+    {
+        _numaService.Initialize();
+        IsNumaSupported = _numaService.IsNumaSupported;
+        NumaTopology = _numaService.GetNumaTopologySummary();
+
+        NumaNodes.Clear();
+        foreach (var node in _numaService.NumaNodes)
+        {
+            NumaNodes.Add(node);
+        }
+
+        if (NumaNodes.Count > 0)
+        {
+            SelectedNumaNode = NumaNodes[0];
+        }
+    }
+
+    [RelayCommand]
+    private void SelectNumaNode(NumaNodeInfo? node)
+    {
+        if (node == null) return;
+
+        // 选中该 NUMA 节点的所有核心
+        foreach (var core in Cores)
+        {
+            core.IsSelected = node.CoreIndices.Contains(core.Index);
+        }
+
+        UpdateSelectedCoreCount();
+        LogMessage = $"已选择 NUMA {node.NodeId} 的 {node.CoreCount} 个核心";
+    }
+
+    [RelayCommand]
+    private void ApplyNumaOptimization()
+    {
+        var suggestion = _numaService.GetGameOptimizationSuggestion();
+        
+        if (suggestion.RecommendedGameNode.HasValue)
+        {
+            foreach (var core in Cores)
+            {
+                core.IsSelected = suggestion.GameNodeCores.Contains(core.Index);
+            }
+            UpdateSelectedCoreCount();
+            LogMessage = suggestion.Reason;
+        }
+        else
+        {
+            LogMessage = "系统不支持 NUMA 优化";
+        }
+    }
+
+    partial void OnSelectedCoreCountChanged(int value)
+    {
+        // 检查是否跨 NUMA 节点
+        var selectedCores = Cores.Where(c => c.IsSelected).Select(c => c.Index);
+        CrossNumaWarning = _numaService.GetCrossNumaWarning(selectedCores);
+    }
+
+    // ===== 游戏服务初始化与命令 =====
+
+    private void InitializeGameService()
+    {
+        _gameService.OnGameStarted += game =>
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                game.IsRunning = true;
+                RunningGamesCount = Games.Count(g => g.IsRunning);
+                
+                if (game.AutoApply && game.HasConfiguration)
+                {
+                    ApplyGameConfiguration(game);
+                    LogMessage = $"检测到 {game.Name}，已自动应用配置";
+                }
+            });
+        };
+
+        _gameService.OnGameStopped += game =>
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                game.IsRunning = false;
+                RunningGamesCount = Games.Count(g => g.IsRunning);
+                LogMessage = $"{game.Name} 已退出";
+            });
+        };
+
+        if (IsGameMonitorEnabled)
+        {
+            _gameService.StartGameMonitor();
+        }
+    }
+
+    private void LoadGames()
+    {
+        _gameService.LoadGames();
+        Games.Clear();
+        foreach (var game in _gameService.Games)
+        {
+            Games.Add(game);
+        }
+    }
+
+    [RelayCommand]
+    private async Task ScanGamesAsync()
+    {
+        if (IsScanningGames) return;
+
+        IsScanningGames = true;
+        LogMessage = "正在扫描游戏库...";
+
+        try
+        {
+            var scannedGames = await _gameService.ScanAllGamesAsync();
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                int newCount = 0;
+                foreach (var game in scannedGames)
+                {
+                    if (!Games.Any(g => g.PlatformGameId == game.PlatformGameId && g.Platform == game.Platform))
+                    {
+                        Games.Add(game);
+                        _gameService.AddGame(game);
+                        newCount++;
+                    }
+                }
+
+                _gameService.SaveGames();
+                LogMessage = $"扫描完成，发现 {scannedGames.Count} 个游戏，新增 {newCount} 个";
+            });
+        }
+        catch (Exception ex)
+        {
+            LogMessage = $"扫描失败: {ex.Message}";
+        }
+        finally
+        {
+            IsScanningGames = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ConfigureGame(GameInfo? game)
+    {
+        if (game == null) return;
+
+        // 将当前核心选择应用到游戏配置
+        game.SelectedCoreIndices = Cores.Where(c => c.IsSelected).Select(c => c.Index).ToList();
+        game.PriorityCoreIndex = PriorityCore?.Index;
+        game.BindingMode = SelectedBindingMode;
+        game.ProcessPriority = SelectedPriority;
+        game.PreferredNumaNode = SelectedNumaNode?.NodeId;
+        game.HasConfiguration = true;
+
+        _gameService.SaveGames();
+        LogMessage = $"已保存 {game.Name} 的核心配置";
+    }
+
+    [RelayCommand]
+    private void LoadGameConfiguration(GameInfo? game)
+    {
+        if (game == null || !game.HasConfiguration) return;
+
+        // 加载游戏配置到当前设置
+        foreach (var core in Cores)
+        {
+            core.IsSelected = game.SelectedCoreIndices.Contains(core.Index);
+        }
+
+        if (game.PriorityCoreIndex.HasValue)
+        {
+            PriorityCore = Cores.FirstOrDefault(c => c.Index == game.PriorityCoreIndex.Value);
+        }
+
+        SelectedBindingMode = game.BindingMode;
+        SelectedPriority = game.ProcessPriority;
+        TargetProcessName = game.ProcessName;
+
+        if (game.PreferredNumaNode.HasValue)
+        {
+            SelectedNumaNode = NumaNodes.FirstOrDefault(n => n.NodeId == game.PreferredNumaNode.Value);
+        }
+
+        UpdateSelectedCoreCount();
+        LogMessage = $"已加载 {game.Name} 的配置";
+    }
+
+    [RelayCommand]
+    private void LaunchGame(GameInfo? game)
+    {
+        if (game == null) return;
+
+        if (_gameService.LaunchGame(game))
+        {
+            LogMessage = $"正在启动 {game.Name}...";
+
+            // 如果有配置，预设目标进程
+            if (game.HasConfiguration)
+            {
+                LoadGameConfiguration(game);
+            }
+        }
+        else
+        {
+            LogMessage = $"启动 {game.Name} 失败";
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveGame(GameInfo? game)
+    {
+        if (game == null) return;
+
+        Games.Remove(game);
+        _gameService.RemoveGame(game.Id);
+        _gameService.SaveGames();
+        LogMessage = $"已移除 {game.Name}";
+    }
+
+    [RelayCommand]
+    private void ToggleGameMonitor()
+    {
+        IsGameMonitorEnabled = !IsGameMonitorEnabled;
+
+        if (IsGameMonitorEnabled)
+        {
+            _gameService.StartGameMonitor();
+            LogMessage = "游戏监控已启动";
+        }
+        else
+        {
+            _gameService.StopGameMonitor();
+            LogMessage = "游戏监控已停止";
+        }
+    }
+
+    private void ApplyGameConfiguration(GameInfo game)
+    {
+        if (string.IsNullOrEmpty(game.ProcessName)) return;
+
+        var processes = _processService.FindProcessesByName(game.ProcessName);
+        if (processes.Count == 0) return;
+
+        var affinityMask = _affinityService.CalculateAffinityMask(
+            Cores.Where(c => game.SelectedCoreIndices.Contains(c.Index)));
+
+        foreach (var proc in processes)
+        {
+            _affinityService.SetProcessAffinity(proc.ProcessId, affinityMask);
+            _affinityService.SetProcessPriority(proc.ProcessId, game.ProcessPriority);
+        }
+    }
+
     public void Cleanup()
     {
         _autoScanTimer.Stop();
@@ -1116,6 +1412,8 @@ public partial class MainViewModel : ObservableObject
         _monitorTimer.Stop();
         _affinityService.StopMonitoring();
         _monitorService.Dispose();
+        _gameService.StopGameMonitor();
+        _gameService.SaveGames();
         SaveConfig();
         SaveProcessGroups();
     }

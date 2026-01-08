@@ -46,6 +46,8 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="16"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="20"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -722,8 +724,198 @@
             </Grid>
         </Border>
 
+        <!-- 游戏库 & NUMA 优化 -->
+        <Border Grid.Row="10" Style="{StaticResource CardStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="Auto" MinWidth="280"/>
+                </Grid.ColumnDefinitions>
+                
+                <!-- 左侧：游戏库 -->
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="12"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- 标题栏 -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="游戏库" FontSize="13" FontWeight="Medium"
+                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Games.Count, StringFormat=' ({0})'}" 
+                                       FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center"/>
+                            <Border Background="#30D158" CornerRadius="8" Padding="6,2" Margin="8,0,0,0"
+                                    Visibility="{Binding RunningGamesCount, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <TextBlock Text="{Binding RunningGamesCount, StringFormat='{}{0} 运行中'}" 
+                                           FontSize="10" Foreground="White"/>
+                            </Border>
+                        </StackPanel>
+                        
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="扫描游戏" Command="{Binding ScanGamesCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"
+                                    IsEnabled="{Binding IsScanningGames, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                            <ToggleButton Content="自动监控" IsChecked="{Binding IsGameMonitorEnabled}"
+                                          Style="{StaticResource ModernToggleButtonStyle}"/>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <!-- 游戏列表 -->
+                    <ListBox Grid.Row="2" ItemsSource="{Binding Games}" 
+                             SelectedItem="{Binding SelectedGame}"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             MaxHeight="150">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#F9F9FB" CornerRadius="8" Padding="12,8" Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="13"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           TextTrimming="CharacterEllipsis" MaxWidth="250"/>
+                                                <Ellipse Width="6" Height="6" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                    <Ellipse.Style>
+                                                        <Style TargetType="Ellipse">
+                                                            <Setter Property="Fill" Value="Transparent"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                                    <Setter Property="Fill" Value="#30D158"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Border Background="#E8E8ED" CornerRadius="3" Padding="4,1" Margin="0,0,6,0">
+                                                    <TextBlock Text="{Binding PlatformName}" FontSize="10"
+                                                               Foreground="{StaticResource TextTertiaryBrush}"/>
+                                                </Border>
+                                                <TextBlock Text="{Binding ConfigSummary}" FontSize="11"
+                                                           Foreground="{StaticResource TextTertiaryBrush}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Content="▶" FontSize="10" Padding="6,3" ToolTip="启动游戏"
+                                                    Command="{Binding DataContext.LaunchGameCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0"/>
+                                            <Button Content="配置" FontSize="10" Padding="6,3" ToolTip="保存当前配置到此游戏"
+                                                    Command="{Binding DataContext.ConfigureGameCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0"/>
+                                            <Button Content="加载" FontSize="10" Padding="6,3" ToolTip="加载此游戏的配置"
+                                                    Command="{Binding DataContext.LoadGameConfigurationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding HasConfiguration, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0"/>
+                                            <Button Content="✕" FontSize="10" Padding="6,3" ToolTip="移除"
+                                                    Command="{Binding DataContext.RemoveGameCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+                
+                <!-- 右侧：NUMA 优化 -->
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="12"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- NUMA 标题 -->
+                    <StackPanel Grid.Row="0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="NUMA 优化" FontSize="13" FontWeight="Medium"
+                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            <Border CornerRadius="4" Padding="4,1" Margin="8,0,0,0"
+                                    Visibility="{Binding IsNumaSupported, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#30D158"/>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="支持" FontSize="10" Foreground="White"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding NumaTopology}" FontSize="11" 
+                                   Foreground="{StaticResource TextTertiaryBrush}" Margin="0,4,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    
+                    <!-- NUMA 节点选择 -->
+                    <StackPanel Grid.Row="2" Visibility="{Binding IsNumaSupported, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="选择 NUMA 节点" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                        
+                        <ItemsControl ItemsSource="{Binding NumaNodes}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Command="{Binding DataContext.SelectNumaNodeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Margin="0,0,8,0"
+                                            ToolTip="{Binding DetailInfo}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding DisplayName}" FontSize="12"/>
+                                            <TextBlock Text="{Binding CoreCount, StringFormat=' ({0}C)'}" FontSize="10" 
+                                                       Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        
+                        <Button Content="应用 NUMA 游戏优化" Command="{Binding ApplyNumaOptimizationCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}" Margin="0,12,0,0"
+                                HorizontalAlignment="Left"/>
+                        
+                        <!-- 跨 NUMA 警告 -->
+                        <Border Background="#FFF3CD" CornerRadius="6" Padding="10,6" Margin="0,12,0,0"
+                                Visibility="{Binding CrossNumaWarning, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="{Binding CrossNumaWarning}" FontSize="11" 
+                                       Foreground="#856404" TextWrapping="Wrap"/>
+                        </Border>
+                    </StackPanel>
+                    
+                    <!-- 不支持 NUMA 提示 -->
+                    <TextBlock Grid.Row="2" Text="当前系统不支持 NUMA 或只有单节点" FontSize="12"
+                               Foreground="{StaticResource TextTertiaryBrush}"
+                               VerticalAlignment="Center" HorizontalAlignment="Center"
+                               Visibility="{Binding IsNumaSupported, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                </Grid>
+            </Grid>
+        </Border>
+
         <!-- 底部控制栏 -->
-        <Grid Grid.Row="10">
+        <Grid Grid.Row="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
