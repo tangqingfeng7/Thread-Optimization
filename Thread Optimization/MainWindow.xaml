@@ -35,6 +35,7 @@
         <converters:PriorityToChineseConverter x:Key="PriorityToChineseConverter"/>
     </Window.Resources>
 
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="40,32">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -210,7 +211,7 @@
         </Border>
 
         <!-- 核心选择区 -->
-        <Border Grid.Row="4" Style="{StaticResource CardStyle}">
+        <Border Grid.Row="4" Style="{StaticResource CardStyle}" MinHeight="180">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -971,4 +972,5 @@
             </StackPanel>
         </Grid>
     </Grid>
+    </ScrollViewer>
 </Window>
