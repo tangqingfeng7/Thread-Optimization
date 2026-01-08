@@ -10,6 +10,12 @@ public enum GamePlatform
     Steam,
     Epic,
     Xbox,
+    GOG,
+    Ubisoft,
+    EA,
+    Battlenet,
+    Riot,
+    WeGame,
     Custom
 }
 
@@ -118,6 +124,12 @@ public partial class GameInfo : ObservableObject
         GamePlatform.Steam => "Steam",
         GamePlatform.Epic => "Epic Games",
         GamePlatform.Xbox => "Xbox/Microsoft Store",
+        GamePlatform.GOG => "GOG Galaxy",
+        GamePlatform.Ubisoft => "Ubisoft Connect",
+        GamePlatform.EA => "EA App",
+        GamePlatform.Battlenet => "Battle.net",
+        GamePlatform.Riot => "Riot Games",
+        GamePlatform.WeGame => "WeGame",
         GamePlatform.Custom => "自定义",
         _ => "未知"
     };
