@@ -2,12 +2,12 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
-using CoreX.Models;
+using ThreadOptimization.Models;
 
 // 明确指定使用 WPF 的 Color 类型，避免与 System.Drawing.Color 冲突
 using Color = System.Windows.Media.Color;
 
-namespace CoreX.Converters;
+namespace ThreadOptimization.Converters;
 
 /// <summary>
 /// 布尔值转可见性转换器（支持null检查和对象检查）

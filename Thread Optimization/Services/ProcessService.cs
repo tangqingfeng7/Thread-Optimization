@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using CoreX.Models;
+using ThreadOptimization.Models;
 
-namespace CoreX.Services;
+namespace ThreadOptimization.Services;
 
 /// <summary>
 /// 进程管理服务

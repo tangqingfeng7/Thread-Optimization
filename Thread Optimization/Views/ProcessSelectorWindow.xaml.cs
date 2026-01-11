@@ -1,9 +1,9 @@
 using System.Windows;
 using System.Windows.Input;
-using CoreX.Models;
-using CoreX.Services;
+using ThreadOptimization.Models;
+using ThreadOptimization.Services;
 
-namespace CoreX.Views;
+namespace ThreadOptimization.Views;
 
 /// <summary>
 /// 进程选择器窗口

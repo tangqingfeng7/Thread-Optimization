@@ -66,3 +66,10 @@ $RECYCLE.BIN/
 
 # JetBrains Rider
 *.sln.iml
+
+# Publish output
+publish/
+[Pp]ublish/
+
+# Release packages
+*.zip

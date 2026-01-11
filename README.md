@@ -1,10 +1,10 @@
 <p align="center">
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4?style=flat-square&logo=dotnet" alt=".NET 8.0"/>
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square&logo=windows" alt="Windows"/>
-  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License"/>
+  <img src="https://img.shields.io/badge/License-GPL-3.0-green?style=flat-square" alt="GPL 3.0 License"/>
 </p>
 
-# CoreX - CPU 核心调度管理工具
+# Thread Optimization - CPU 线程优化工具
 
 > 一款专为 Windows 设计的进程 CPU 亲和性管理工具，智能识别 Intel/AMD 混合架构，优化游戏与生产力应用的核心调度策略。
 

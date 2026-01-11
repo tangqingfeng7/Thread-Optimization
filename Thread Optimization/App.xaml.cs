@@ -4,7 +4,7 @@ using System.Windows;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
 
-namespace CoreX;
+namespace ThreadOptimization;
 
 /// <summary>
 /// App.xaml 的交互逻辑

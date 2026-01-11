@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace CoreX.Models;
+namespace ThreadOptimization.Models;
 
 /// <summary>
 /// CPU 制造商

@@ -3,16 +3,16 @@ using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CoreX.Models;
-using CoreX.Services;
-using CoreX.Views;
+using ThreadOptimization.Models;
+using ThreadOptimization.Services;
+using ThreadOptimization.Views;
 using Microsoft.Win32;
 
 using Application = System.Windows.Application;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 
-namespace CoreX.ViewModels;
+namespace ThreadOptimization.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
@@ -1371,12 +1371,13 @@ public partial class MainViewModel : ObservableObject
         LogMessage = $"已移除 {game.Name}";
     }
 
-    [RelayCommand]
-    private void ToggleGameMonitor()
+    /// <summary>
+    /// 当 IsGameMonitorEnabled 属性变化时自动调用
+    /// 处理游戏监控的启动/停止逻辑
+    /// </summary>
+    partial void OnIsGameMonitorEnabledChanged(bool value)
     {
-        IsGameMonitorEnabled = !IsGameMonitorEnabled;
-
-        if (IsGameMonitorEnabled)
+        if (value)
         {
             _gameService.StartGameMonitor();
             LogMessage = "游戏监控已启动";

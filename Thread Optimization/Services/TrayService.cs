@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Forms;
 using Application = System.Windows.Application;
 
-namespace CoreX.Services;
+namespace ThreadOptimization.Services;
 
 /// <summary>
 /// 系统托盘服务

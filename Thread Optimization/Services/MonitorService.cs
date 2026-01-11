@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Management;
 using System.Runtime.InteropServices;
-using CoreX.Models;
+using ThreadOptimization.Models;
 
-namespace CoreX.Services;
+namespace ThreadOptimization.Services;
 
 /// <summary>
 /// CPU 监控服务 - 获取实时使用率、温度、频率

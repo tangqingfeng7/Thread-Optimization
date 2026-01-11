@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Diagnostics;
 
-namespace CoreX.Models;
+namespace ThreadOptimization.Models;
 
 /// <summary>
 /// 进程信息
