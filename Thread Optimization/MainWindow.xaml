@@ -256,36 +256,62 @@
                     </StackPanel>
                     
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <!-- Intel 特定按钮 -->
                         <StackPanel Orientation="Horizontal" 
                                     Visibility="{Binding IsIntel, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Button Content="P核" Command="{Binding SelectAllPCoresCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"/>
+                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"
+                                    ToolTip="选择所有性能核心"/>
                             <Button Content="E核" Command="{Binding SelectAllECoresCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"/>
+                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"
+                                    ToolTip="选择所有能效核心"/>
                         </StackPanel>
                         
+                        <!-- AMD 特定按钮 -->
                         <StackPanel Orientation="Horizontal" 
                                     Visibility="{Binding IsAmd, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Button Content="3D核心" Command="{Binding SelectVCacheCoresCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"
-                                    Visibility="{Binding IsX3D, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    Visibility="{Binding IsX3D, Converter={StaticResource BoolToVisibilityConverter}}"
+                                    ToolTip="选择带3D V-Cache的核心"/>
                             <Button Content="标准" Command="{Binding SelectStandardCoresCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"
-                                    Visibility="{Binding IsX3D, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    Visibility="{Binding IsX3D, Converter={StaticResource BoolToVisibilityConverter}}"
+                                    ToolTip="选择标准核心"/>
                             <Button Content="CCD0" Command="{Binding SelectCcd0Command}"
                                     Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"
-                                    Visibility="{Binding HasMutipleCcds, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    Visibility="{Binding HasMutipleCcds, Converter={StaticResource BoolToVisibilityConverter}}"
+                                    ToolTip="选择CCD0的所有核心"/>
                             <Button Content="CCD1" Command="{Binding SelectCcd1Command}"
                                     Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"
-                                    Visibility="{Binding HasMutipleCcds, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    Visibility="{Binding HasMutipleCcds, Converter={StaticResource BoolToVisibilityConverter}}"
+                                    ToolTip="选择CCD1的所有核心"/>
                         </StackPanel>
                         
+                        <!-- 通用增强按钮 -->
+                        <Border Background="#F2F2F7" CornerRadius="4" Padding="2" Margin="0,0,6,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="主线程" Command="{Binding SelectPrimaryThreadsOnlyCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,2,0"
+                                        ToolTip="仅选择主线程（排除HT/SMT）"/>
+                                <Button Content="隔核" Command="{Binding SelectAlternatingOddCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,2,0"
+                                        ToolTip="隔核选择（奇数核心）"/>
+                                <Button Content="反选" Command="{Binding InvertSelectionCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        ToolTip="反转当前选择"/>
+                            </StackPanel>
+                        </Border>
+                        
                         <Button Content="全选" Command="{Binding SelectAllCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"/>
+                                Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"
+                                ToolTip="选择所有核心"/>
                         <Button Content="清空" Command="{Binding ClearSelectionCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,10,0"/>
+                                Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,10,0"
+                                ToolTip="清除所有选择"/>
                         <Button Content="应用" Command="{Binding ApplySelectionCommand}"
-                                Style="{StaticResource PrimaryButtonStyle}"/>
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                ToolTip="应用当前核心选择"/>
                     </StackPanel>
                 </Grid>
                 
@@ -300,12 +326,42 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <ToggleButton IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                              Width="88" Height="56" Margin="4" Cursor="Hand">
+                                              Width="96" Height="64" Margin="4" Cursor="Hand">
                                     <ToggleButton.ToolTip>
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding DisplayName}" FontWeight="Medium"/>
-                                            <TextBlock Text="{Binding TypeLabel}" Foreground="#86868B"/>
-                                        </StackPanel>
+                                        <ToolTip>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13"/>
+                                                <Separator Margin="0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="70"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    
+                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="物理核心:" Foreground="#86868B"/>
+                                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PhysicalCoreId}"/>
+                                                    
+                                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="类型:" Foreground="#86868B"/>
+                                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding TypeLabel}"/>
+                                                    
+                                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="线程:" Foreground="#86868B"/>
+                                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ThreadTypeLabel}"/>
+                                                    
+                                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="CCD/CCX:" Foreground="#86868B"/>
+                                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CcdCcxDisplayName}"/>
+                                                    
+                                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="使用率:" Foreground="#86868B"/>
+                                                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding UsageText}"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </ToolTip>
                                     </ToggleButton.ToolTip>
                                     <ToggleButton.Template>
                                         <ControlTemplate TargetType="ToggleButton">
@@ -317,18 +373,34 @@
                                                     </MultiBinding>
                                                 </Border.Background>
                                                 <Grid>
+                                                    <!-- 物理核心ID指示器（左上角） -->
+                                                    <Border HorizontalAlignment="Left" VerticalAlignment="Top" 
+                                                            Background="#00000020" CornerRadius="0,0,6,0" Padding="4,2">
+                                                        <TextBlock Text="{Binding PhysicalCoreId, StringFormat='P{0}'}" 
+                                                                   FontSize="8" Opacity="0.7"
+                                                                   Foreground="{Binding IsSelected, Converter={StaticResource CoreSelectedToForegroundConverter}}"/>
+                                                    </Border>
+                                                    
+                                                    <!-- HT/SMT 标记（右上角） -->
+                                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" 
+                                                            Background="#FF9F0A" CornerRadius="0,10,0,6" Padding="4,2"
+                                                            Visibility="{Binding IsHyperThread, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <TextBlock Text="HT" FontSize="7" Foreground="White" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                    
                                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                                         <TextBlock Text="{Binding DisplayName}"
-                                                                   FontWeight="Medium" FontSize="13"
+                                                                   FontWeight="Medium" FontSize="12"
                                                                    HorizontalAlignment="Center"
                                                                    Foreground="{Binding IsSelected, Converter={StaticResource CoreSelectedToForegroundConverter}}"/>
                                                         <TextBlock Text="{Binding TypeLabel}"
-                                                                   FontSize="10" Opacity="0.7"
+                                                                   FontSize="9" Opacity="0.7"
                                                                    HorizontalAlignment="Center" Margin="0,2,0,0"
                                                                    Foreground="{Binding IsSelected, Converter={StaticResource CoreSelectedToForegroundConverter}}"/>
                                                     </StackPanel>
+                                                    
                                                     <!-- 使用率指示条 -->
-                                                    <Border VerticalAlignment="Bottom" Height="3" CornerRadius="0,0,10,10"
+                                                    <Border VerticalAlignment="Bottom" Height="4" CornerRadius="0,0,10,10"
                                                             Visibility="{Binding DataContext.ShowPerCoreUsage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                                                         <Border.Background>
                                                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
@@ -344,9 +416,10 @@
                                                             </LinearGradientBrush>
                                                         </Border.OpacityMask>
                                                     </Border>
+                                                    
                                                     <!-- 使用率文本 -->
                                                     <TextBlock Text="{Binding UsageText}" FontSize="8" Opacity="0.6"
-                                                               HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,6,0"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,6,6"
                                                                Foreground="{Binding IsSelected, Converter={StaticResource CoreSelectedToForegroundConverter}}"
                                                                Visibility="{Binding DataContext.ShowPerCoreUsage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                                 </Grid>
@@ -437,29 +510,52 @@
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    VerticalAlignment="Center"/>
                         
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <WrapPanel Grid.Column="1" Orientation="Horizontal">
                             <RadioButton Content="动态" Style="{StaticResource ModernRadioButtonStyle}"
                                          IsChecked="{Binding SelectedBindingMode, Converter={StaticResource BindingModeConverter}, ConverterParameter=Dynamic}"
-                                         Margin="0,0,20,0"/>
+                                         Margin="0,0,16,4"
+                                         ToolTip="允许系统在选定核心间动态调度"/>
                             <RadioButton Content="静态" Style="{StaticResource ModernRadioButtonStyle}"
                                          IsChecked="{Binding SelectedBindingMode, Converter={StaticResource BindingModeConverter}, ConverterParameter=Static}"
-                                         Margin="0,0,20,0"/>
+                                         Margin="0,0,16,4"
+                                         ToolTip="固定绑定到选定的核心"/>
                             <RadioButton Style="{StaticResource ModernRadioButtonStyle}"
                                          IsChecked="{Binding SelectedBindingMode, Converter={StaticResource BindingModeConverter}, ConverterParameter=D2}"
-                                         Margin="0,0,20,0">
+                                         Margin="0,0,16,4"
+                                         ToolTip="智能动态调度，优先使用指定核心">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="D2"/>
                                     <TextBlock Text=" β" Foreground="{StaticResource AccentBrush}" FontSize="10"/>
                                 </StackPanel>
                             </RadioButton>
                             <RadioButton Style="{StaticResource ModernRadioButtonStyle}"
-                                         IsChecked="{Binding SelectedBindingMode, Converter={StaticResource BindingModeConverter}, ConverterParameter=D3PowerSave}">
+                                         IsChecked="{Binding SelectedBindingMode, Converter={StaticResource BindingModeConverter}, ConverterParameter=D3PowerSave}"
+                                         Margin="0,0,16,4"
+                                         ToolTip="优先使用E核，降低功耗">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="D3省电"/>
                                     <TextBlock Text=" β" Foreground="{StaticResource AccentBrush}" FontSize="10"/>
                                 </StackPanel>
                             </RadioButton>
-                        </StackPanel>
+                            <RadioButton Style="{StaticResource ModernRadioButtonStyle}"
+                                         IsChecked="{Binding SelectedBindingMode, Converter={StaticResource BindingModeConverter}, ConverterParameter=RoundRobin}"
+                                         Margin="0,0,16,4"
+                                         ToolTip="在选定核心间轮流分配进程">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="轮询"/>
+                                    <TextBlock Text=" β" Foreground="{StaticResource AccentBrush}" FontSize="10"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Style="{StaticResource ModernRadioButtonStyle}"
+                                         IsChecked="{Binding SelectedBindingMode, Converter={StaticResource BindingModeConverter}, ConverterParameter=LoadBalance}"
+                                         Margin="0,0,0,4"
+                                         ToolTip="根据核心负载动态分配到最空闲的核心">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="负载均衡"/>
+                                    <TextBlock Text=" β" Foreground="{StaticResource AccentBrush}" FontSize="10"/>
+                                </StackPanel>
+                            </RadioButton>
+                        </WrapPanel>
                     </Grid>
                     
                     <!-- 自动选项 -->

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace ThreadOptimization.Models;
@@ -155,6 +156,49 @@ public partial class CpuCore : ObservableObject
     /// 获取该核心的亲和性掩码
     /// </summary>
     public long AffinityMask => 1L << Index;
+
+    /// <summary>
+    /// 物理核心显示名称（用于分组）
+    /// </summary>
+    public string PhysicalCoreDisplayName => $"物理核心 {PhysicalCoreId}";
+
+    /// <summary>
+    /// CCD/CCX 分组显示名称
+    /// </summary>
+    public string CcdCcxDisplayName => CcdId >= 0 ? $"CCD{CcdId}" + (CcxId >= 0 ? $" CCX{CcxId}" : "") : "";
+
+    /// <summary>
+    /// 线程类型标识（主线程/超线程）
+    /// </summary>
+    public string ThreadTypeLabel => IsHyperThread ? "HT/SMT" : "主线程";
+
+    /// <summary>
+    /// 详细信息提示
+    /// </summary>
+    public string DetailTooltip
+    {
+        get
+        {
+            var lines = new List<string>
+            {
+                $"逻辑核心: {Index}",
+                $"物理核心: {PhysicalCoreId}",
+                $"类型: {TypeLabel}",
+                $"线程: {ThreadTypeLabel}"
+            };
+            
+            if (CcdId >= 0)
+                lines.Add($"CCD: {CcdId}");
+            if (CcxId >= 0)
+                lines.Add($"CCX: {CcxId}");
+            if (FrequencyMHz > 0)
+                lines.Add($"频率: {FrequencyText}");
+            if (Usage > 0)
+                lines.Add($"使用率: {UsageText}");
+                
+            return string.Join("\n", lines);
+        }
+    }
 }
 
 /// <summary>

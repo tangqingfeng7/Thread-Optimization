@@ -8,9 +8,11 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <!-- <ApplicationIcon>Assets\icon.ico</ApplicationIcon> -->
-    <AssemblyName>CoreX</AssemblyName>
-    <RootNamespace>CoreX</RootNamespace>
+    <AssemblyName>ThreadOptimization</AssemblyName>
+    <RootNamespace>ThreadOptimization</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>Thread Optimization</Product>
+    <Description>CPU线程优化工具</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -23,7 +23,53 @@ public enum BindingMode
     /// <summary>
     /// D3省电模式 (Beta) - 优先使用E核，降低功耗
     /// </summary>
-    D3PowerSave
+    D3PowerSave,
+    
+    /// <summary>
+    /// 轮询模式 (Beta) - 在选定核心间轮流分配
+    /// </summary>
+    RoundRobin,
+    
+    /// <summary>
+    /// 负载均衡模式 (Beta) - 根据核心负载动态分配
+    /// </summary>
+    LoadBalance
+}
+
+/// <summary>
+/// 核心选择模式
+/// </summary>
+public enum CoreSelectionMode
+{
+    /// <summary>
+    /// 自定义选择
+    /// </summary>
+    Custom,
+    
+    /// <summary>
+    /// 仅主线程（排除HT/SMT）
+    /// </summary>
+    PrimaryThreadsOnly,
+    
+    /// <summary>
+    /// 按物理核心选择
+    /// </summary>
+    ByPhysicalCore,
+    
+    /// <summary>
+    /// 隔核选择
+    /// </summary>
+    Alternating,
+    
+    /// <summary>
+    /// 按CCD分组
+    /// </summary>
+    ByCcd,
+    
+    /// <summary>
+    /// 按CCX分组
+    /// </summary>
+    ByCcx
 }
 
 /// <summary>

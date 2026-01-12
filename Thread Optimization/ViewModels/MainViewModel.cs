@@ -660,6 +660,194 @@ public partial class MainViewModel : ObservableObject
         UpdateSelectedCoreCount();
     }
 
+    /// <summary>
+    /// 仅选择主线程（排除HT/SMT）
+    /// </summary>
+    [RelayCommand]
+    private void SelectPrimaryThreadsOnly()
+    {
+        if (CpuInfo == null) return;
+        
+        var primaryCores = _cpuService.GetPrimaryThreadCores(CpuInfo);
+        foreach (var core in Cores)
+        {
+            core.IsSelected = primaryCores.Contains(core.Index);
+        }
+        LogMessage = $"已选择 {primaryCores.Count} 个主线程";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    /// <summary>
+    /// 隔核选择（奇数核心）
+    /// </summary>
+    [RelayCommand]
+    private void SelectAlternatingOdd()
+    {
+        if (CpuInfo == null) return;
+        
+        var alternateCores = _cpuService.GetAlternatingCores(CpuInfo, startWithFirst: true);
+        foreach (var core in Cores)
+        {
+            core.IsSelected = alternateCores.Contains(core.Index);
+        }
+        LogMessage = $"已隔核选择 {alternateCores.Count} 个核心（奇数）";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    /// <summary>
+    /// 隔核选择（偶数核心）
+    /// </summary>
+    [RelayCommand]
+    private void SelectAlternatingEven()
+    {
+        if (CpuInfo == null) return;
+        
+        var alternateCores = _cpuService.GetAlternatingCores(CpuInfo, startWithFirst: false);
+        foreach (var core in Cores)
+        {
+            core.IsSelected = alternateCores.Contains(core.Index);
+        }
+        LogMessage = $"已隔核选择 {alternateCores.Count} 个核心（偶数）";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    /// <summary>
+    /// 选择高性能核心（P核/V-Cache）
+    /// </summary>
+    [RelayCommand]
+    private void SelectHighPerformanceCores()
+    {
+        if (CpuInfo == null) return;
+        
+        var highPerfCores = _cpuService.GetHighPerformanceCores(CpuInfo);
+        foreach (var core in Cores)
+        {
+            core.IsSelected = highPerfCores.Contains(core.Index);
+        }
+        
+        var typeLabel = IsIntel && IsHybrid ? "P核" : (IsX3D ? "V-Cache核心" : "全部核心");
+        LogMessage = $"已选择 {highPerfCores.Count} 个{typeLabel}";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    /// <summary>
+    /// 选择低功耗核心（E核/标准核心）
+    /// </summary>
+    [RelayCommand]
+    private void SelectEfficiencyCores()
+    {
+        if (CpuInfo == null) return;
+        
+        var effCores = _cpuService.GetEfficiencyCores(CpuInfo);
+        foreach (var core in Cores)
+        {
+            core.IsSelected = effCores.Contains(core.Index);
+        }
+        
+        var typeLabel = IsIntel && IsHybrid ? "E核" : (IsX3D ? "标准核心" : "");
+        LogMessage = effCores.Count > 0 
+            ? $"已选择 {effCores.Count} 个{typeLabel}" 
+            : "当前CPU无低功耗核心";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    /// <summary>
+    /// 按物理核心选择（选中指定物理核心的所有线程）
+    /// </summary>
+    [RelayCommand]
+    private void SelectByPhysicalCore(int physicalCoreId)
+    {
+        foreach (var core in Cores)
+        {
+            if (core.PhysicalCoreId == physicalCoreId)
+            {
+                core.IsSelected = !core.IsSelected;
+            }
+        }
+        LogMessage = $"切换物理核心 {physicalCoreId}";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    /// <summary>
+    /// 选择指定CCX的核心
+    /// </summary>
+    [RelayCommand]
+    private void SelectCcx(string ccxParam)
+    {
+        if (CpuInfo == null || string.IsNullOrEmpty(ccxParam)) return;
+        
+        var parts = ccxParam.Split(',');
+        if (parts.Length != 2) return;
+        
+        if (int.TryParse(parts[0], out int ccdId) && int.TryParse(parts[1], out int ccxId))
+        {
+            var ccxCores = _cpuService.GetCcxCores(CpuInfo, ccdId, ccxId);
+            foreach (var core in Cores)
+            {
+                core.IsSelected = ccxCores.Contains(core.Index);
+            }
+            LogMessage = $"已选择 CCD{ccdId} CCX{ccxId} 的 {ccxCores.Count} 个核心";
+            SelectedPreset = PresetType.Custom;
+            UpdateSelectedCoreCount();
+        }
+    }
+
+    /// <summary>
+    /// 反选核心
+    /// </summary>
+    [RelayCommand]
+    private void InvertSelection()
+    {
+        foreach (var core in Cores)
+        {
+            core.IsSelected = !core.IsSelected;
+        }
+        LogMessage = "已反选";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    /// <summary>
+    /// 选择前N个核心
+    /// </summary>
+    [RelayCommand]
+    private void SelectFirstNCores(int count)
+    {
+        int selected = 0;
+        foreach (var core in Cores.OrderBy(c => c.Index))
+        {
+            core.IsSelected = selected < count;
+            selected++;
+        }
+        LogMessage = $"已选择前 {count} 个核心";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
+    /// <summary>
+    /// 选择后N个核心
+    /// </summary>
+    [RelayCommand]
+    private void SelectLastNCores(int count)
+    {
+        int startIndex = Math.Max(0, Cores.Count - count);
+        int index = 0;
+        foreach (var core in Cores.OrderBy(c => c.Index))
+        {
+            core.IsSelected = index >= startIndex;
+            index++;
+        }
+        LogMessage = $"已选择后 {count} 个核心";
+        SelectedPreset = PresetType.Custom;
+        UpdateSelectedCoreCount();
+    }
+
     [RelayCommand]
     private void SelectAll()
     {

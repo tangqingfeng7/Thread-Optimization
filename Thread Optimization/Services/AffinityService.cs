@@ -178,6 +178,8 @@ public class AffinityService
                                 Models.BindingMode.Dynamic => affinityMask,
                                 Models.BindingMode.D2 => CalculateD2Mask(affinityMask, priorityCoreIndex),
                                 Models.BindingMode.D3PowerSave => CalculateD3Mask(affinityMask),
+                                Models.BindingMode.RoundRobin => CalculateRoundRobinMask(affinityMask, processInfo.ProcessId),
+                                Models.BindingMode.LoadBalance => affinityMask, // 需要监控服务提供核心使用率
                                 _ => affinityMask
                             };
                             
@@ -280,6 +282,75 @@ public class AffinityService
     private long CalculateD3Mask(long baseMask)
     {
         return baseMask;
+    }
+
+    /// <summary>
+    /// 轮询核心索引（用于RoundRobin模式）
+    /// </summary>
+    private int _roundRobinIndex = 0;
+    
+    /// <summary>
+    /// 计算轮询模式的掩码
+    /// </summary>
+    private long CalculateRoundRobinMask(long baseMask, int processId)
+    {
+        // 获取baseMask中设置的核心索引列表
+        var coreIndices = new List<int>();
+        for (int i = 0; i < 64; i++)
+        {
+            if ((baseMask & (1L << i)) != 0)
+            {
+                coreIndices.Add(i);
+            }
+        }
+        
+        if (coreIndices.Count == 0)
+            return baseMask;
+        
+        // 轮询选择核心
+        int selectedCore = coreIndices[_roundRobinIndex % coreIndices.Count];
+        _roundRobinIndex++;
+        
+        // 返回单核心掩码
+        return 1L << selectedCore;
+    }
+
+    /// <summary>
+    /// 计算负载均衡模式的掩码
+    /// </summary>
+    private long CalculateLoadBalanceMask(long baseMask, float[] coreUsage)
+    {
+        if (coreUsage == null || coreUsage.Length == 0)
+            return baseMask;
+        
+        // 获取baseMask中设置的核心索引列表
+        var coreIndices = new List<int>();
+        for (int i = 0; i < 64; i++)
+        {
+            if ((baseMask & (1L << i)) != 0)
+            {
+                coreIndices.Add(i);
+            }
+        }
+        
+        if (coreIndices.Count == 0)
+            return baseMask;
+        
+        // 找到负载最低的核心
+        int lowestUsageCore = coreIndices[0];
+        float lowestUsage = float.MaxValue;
+        
+        foreach (var coreIndex in coreIndices)
+        {
+            if (coreIndex < coreUsage.Length && coreUsage[coreIndex] < lowestUsage)
+            {
+                lowestUsage = coreUsage[coreIndex];
+                lowestUsageCore = coreIndex;
+            }
+        }
+        
+        // 返回负载最低的核心掩码
+        return 1L << lowestUsageCore;
     }
     
     private string GetPriorityName(ProcessPriorityLevel priority)
