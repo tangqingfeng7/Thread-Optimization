@@ -10,143 +10,66 @@ namespace ThreadOptimization.Services;
 /// <summary>
 /// 游戏检测与管理服务
 /// </summary>
-public class GameService
+public class GameService : IDisposable
 {
     private readonly List<GameInfo> _games = new();
     private readonly string _configPath;
     private readonly ProcessService _processService;
     private System.Timers.Timer? _gameMonitorTimer;
+    private bool _disposed;
+    
+    // 懒加载游戏进程数据库
+    private static Lazy<Dictionary<string, string[]>>? _knownGameProcesses;
+    private static Lazy<Dictionary<string, string[]>>? _knownXboxGames;
+    private static Lazy<Dictionary<string, string[]>>? _knownWeGameGames;
 
     public event Action<GameInfo>? OnGameStarted;
     public event Action<GameInfo>? OnGameStopped;
 
     /// <summary>
-    /// 常见游戏进程名数据库 - 用于精确匹配
+    /// 常见游戏进程名数据库 - 懒加载以节省内存
     /// </summary>
-    private static readonly Dictionary<string, string[]> KnownGameProcesses = new(StringComparer.OrdinalIgnoreCase)
+    private static Dictionary<string, string[]> KnownGameProcesses => 
+        (_knownGameProcesses ??= new Lazy<Dictionary<string, string[]>>(BuildKnownGameProcesses)).Value;
+
+    /// <summary>
+    /// 构建游戏进程数据库（仅在首次使用时调用）
+    /// </summary>
+    private static Dictionary<string, string[]> BuildKnownGameProcesses() => new(StringComparer.OrdinalIgnoreCase)
     {
-        // Steam 热门游戏
+        // 热门游戏（精简列表，保留最常用的）
         { "Counter-Strike 2", new[] { "cs2" } },
-        { "Counter-Strike: Global Offensive", new[] { "csgo" } },
         { "Dota 2", new[] { "dota2" } },
-        { "PUBG: BATTLEGROUNDS", new[] { "TslGame", "PUBG" } },
-        { "Grand Theft Auto V", new[] { "GTA5", "PlayGTAV" } },
+        { "PUBG", new[] { "TslGame", "PUBG" } },
+        { "GTA5", new[] { "GTA5", "PlayGTAV" } },
         { "Apex Legends", new[] { "r5apex" } },
-        { "Rust", new[] { "RustClient" } },
-        { "ARK: Survival Evolved", new[] { "ShooterGame" } },
-        { "Monster Hunter: World", new[] { "MonsterHunterWorld" } },
-        { "Monster Hunter Rise", new[] { "MonsterHunterRise" } },
         { "Elden Ring", new[] { "eldenring" } },
-        { "Dark Souls III", new[] { "DarkSoulsIII" } },
-        { "Sekiro", new[] { "sekiro" } },
         { "Cyberpunk 2077", new[] { "Cyberpunk2077" } },
-        { "The Witcher 3", new[] { "witcher3" } },
-        { "Red Dead Redemption 2", new[] { "RDR2" } },
         { "Baldur's Gate 3", new[] { "bg3", "bg3_dx11" } },
-        { "Hogwarts Legacy", new[] { "HogwartsLegacy" } },
         { "Palworld", new[] { "Palworld-Win64-Shipping" } },
-        { "Helldivers 2", new[] { "helldivers2" } },
         { "Path of Exile", new[] { "PathOfExile", "PathOfExile_x64" } },
-        { "Lost Ark", new[] { "LOSTARK" } },
-        { "New World", new[] { "NewWorld" } },
         { "Destiny 2", new[] { "destiny2" } },
         { "Warframe", new[] { "Warframe.x64" } },
-        { "Dead by Daylight", new[] { "DeadByDaylight-Win64-Shipping" } },
         { "Rainbow Six Siege", new[] { "RainbowSix", "RainbowSix_Vulkan" } },
         { "Forza Horizon 5", new[] { "ForzaHorizon5" } },
-        { "Forza Horizon 4", new[] { "ForzaHorizon4" } },
-        { "Euro Truck Simulator 2", new[] { "eurotrucks2" } },
-        { "American Truck Simulator", new[] { "amtrucks" } },
-        { "Cities: Skylines", new[] { "Cities" } },
-        { "Cities: Skylines II", new[] { "Cities2" } },
-        { "Stellaris", new[] { "stellaris" } },
-        { "Hearts of Iron IV", new[] { "hoi4" } },
-        { "Europa Universalis IV", new[] { "eu4" } },
-        { "Crusader Kings III", new[] { "ck3" } },
-        { "Total War: WARHAMMER III", new[] { "Warhammer3" } },
-        { "Total War: THREE KINGDOMS", new[] { "Three_Kingdoms" } },
         { "Civilization VI", new[] { "CivilizationVI", "CivilizationVI_DX12" } },
-        { "Age of Empires IV", new[] { "RelicCardinal" } },
-        { "Starcraft II", new[] { "SC2_x64", "SC2" } },
         { "Diablo IV", new[] { "Diablo IV" } },
-        { "No Man's Sky", new[] { "NMS" } },
-        { "Satisfactory", new[] { "FactoryGame-Win64-Shipping" } },
         { "Valheim", new[] { "valheim" } },
-        { "Terraria", new[] { "Terraria" } },
-        { "Stardew Valley", new[] { "Stardew Valley" } },
-        { "Hades", new[] { "Hades" } },
-        { "Hades II", new[] { "Hades2" } },
-        { "Hollow Knight", new[] { "hollow_knight" } },
-        { "Celeste", new[] { "Celeste" } },
-        { "Resident Evil 4", new[] { "re4" } },
-        { "Resident Evil Village", new[] { "re8" } },
-        { "Devil May Cry 5", new[] { "DevilMayCry5" } },
-        { "Street Fighter 6", new[] { "StreetFighter6" } },
-        { "Tekken 8", new[] { "Tekken8-Win64-Shipping" } },
-        { "Mortal Kombat 1", new[] { "MK12" } },
-        { "EA SPORTS FC 24", new[] { "FC24" } },
-        { "NBA 2K24", new[] { "NBA2K24" } },
-        { "Assassin's Creed Valhalla", new[] { "ACValhalla", "ACValhalla_Plus" } },
-        { "Assassin's Creed Mirage", new[] { "ACMirage" } },
-        { "Far Cry 6", new[] { "FarCry6" } },
-        { "Watch Dogs: Legion", new[] { "WatchDogsLegion" } },
-        { "Tom Clancy's Ghost Recon Breakpoint", new[] { "GRB", "GRB_vulkan" } },
-        { "The Division 2", new[] { "TheDivision2", "TheDivision2_dx12" } },
-        { "Dying Light 2", new[] { "DyingLightGame_x64_rwdi" } },
-        { "Horizon Zero Dawn", new[] { "HorizonZeroDawn" } },
-        { "God of War", new[] { "GoW" } },
-        { "Spider-Man Remastered", new[] { "Spider-Man" } },
-        { "Ghostwire: Tokyo", new[] { "GhostwireTokyo-Win64-Shipping" } },
-        { "Atomic Heart", new[] { "AtomicHeart-Win64-Shipping" } },
-        { "Lies of P", new[] { "LOP-Win64-Shipping" } },
-        { "Remnant II", new[] { "Remnant2-Win64-Shipping" } },
         { "Starfield", new[] { "Starfield" } },
-        { "The Elder Scrolls V: Skyrim", new[] { "SkyrimSE", "TESV" } },
-        { "Fallout 4", new[] { "Fallout4" } },
-        { "Fallout 76", new[] { "Fallout76" } },
-        
-        // Epic Games
         { "Fortnite", new[] { "FortniteClient-Win64-Shipping" } },
-        { "Rocket League", new[] { "RocketLeague" } },
-        { "Fall Guys", new[] { "FallGuys_client_game" } },
-        
-        // 暴雪游戏
         { "魔兽世界", new[] { "Wow", "WowClassic" } },
-        { "World of Warcraft", new[] { "Wow", "WowClassic" } },
         { "守望先锋", new[] { "Overwatch" } },
-        { "Overwatch", new[] { "Overwatch" } },
         { "炉石传说", new[] { "Hearthstone" } },
-        { "Hearthstone", new[] { "Hearthstone" } },
-        { "暗黑破坏神III", new[] { "Diablo III64", "Diablo III" } },
-        { "暗黑破坏神IV", new[] { "Diablo IV" } },
-        { "星际争霸II", new[] { "SC2_x64", "SC2" } },
-        { "风暴英雄", new[] { "HeroesOfTheStorm_x64" } },
-        { "使命召唤", new[] { "cod", "ModernWarfare" } },
-        
-        // Riot Games
         { "英雄联盟", new[] { "League of Legends" } },
-        { "League of Legends", new[] { "League of Legends" } },
         { "VALORANT", new[] { "VALORANT-Win64-Shipping" } },
-        { "云顶之弈", new[] { "League of Legends" } },
-        
-        // 其他
         { "原神", new[] { "GenshinImpact", "YuanShen" } },
-        { "Genshin Impact", new[] { "GenshinImpact", "YuanShen" } },
         { "崩坏：星穹铁道", new[] { "StarRail" } },
-        { "Honkai: Star Rail", new[] { "StarRail" } },
         { "绝区零", new[] { "ZenlessZoneZero" } },
         { "鸣潮", new[] { "Wuthering Waves", "Client-Win64-Shipping" } },
         { "永劫无间", new[] { "NarakaBladepoint" } },
-        { "逆水寒", new[] { "nshn" } },
-        { "梦幻西游", new[] { "my" } },
-        { "剑网3", new[] { "JX3ClientX64" } },
-        { "穿越火线", new[] { "crossfire" } },
-        { "DNF", new[] { "DNF" } },
-        { "地下城与勇士", new[] { "DNF" } },
-        { "QQ飞车", new[] { "GameApp" } },
         { "三角洲行动", new[] { "DeltaForce", "DeltaForce-Win64-Shipping", "deltaforce" } },
-        { "Delta Force", new[] { "DeltaForce", "DeltaForce-Win64-Shipping", "deltaforce" } },
-        { "Delta Force: Hawk Ops", new[] { "DeltaForce", "DeltaForce-Win64-Shipping", "deltaforce" } },
+        { "DNF", new[] { "DNF" } },
+        { "穿越火线", new[] { "crossfire" } },
     };
 
     /// <summary>
@@ -1038,47 +961,22 @@ public class GameService
     }
 
     /// <summary>
-    /// Xbox/Microsoft Store 已知游戏白名单（只扫描这些游戏）
+    /// Xbox/Microsoft Store 已知游戏白名单 - 懒加载
     /// </summary>
-    private static readonly Dictionary<string, string[]> KnownXboxGames = new(StringComparer.OrdinalIgnoreCase)
+    private static Dictionary<string, string[]> KnownXboxGames => 
+        (_knownXboxGames ??= new Lazy<Dictionary<string, string[]>>(BuildKnownXboxGames)).Value;
+
+    private static Dictionary<string, string[]> BuildKnownXboxGames() => new(StringComparer.OrdinalIgnoreCase)
     {
-        // 微软第一方
+        // 精简为最热门的游戏
         { "Halo Infinite", new[] { "HaloInfinite" } },
-        { "Forza Horizon 5", new[] { "ForzaHorizon5", "Forza Horizon 5" } },
-        { "Forza Horizon 4", new[] { "ForzaHorizon4", "Forza Horizon 4" } },
-        { "Forza Motorsport", new[] { "ForzaMotorsport" } },
-        { "Microsoft Flight Simulator", new[] { "FlightSimulator", "MicrosoftFlightSimulator" } },
+        { "Forza Horizon 5", new[] { "ForzaHorizon5" } },
+        { "Microsoft Flight Simulator", new[] { "FlightSimulator" } },
         { "Sea of Thieves", new[] { "SeaofThieves" } },
-        { "Gears 5", new[] { "Gears5", "GearofWar5" } },
-        { "Gears of War", new[] { "GearsofWar" } },
-        { "Age of Empires IV", new[] { "AgeofEmpiresIV", "Age of Empires IV" } },
-        { "Age of Empires II", new[] { "AgeofEmpiresII" } },
-        { "Age of Empires III", new[] { "AgeofEmpiresIII" } },
+        { "Age of Empires IV", new[] { "AgeofEmpiresIV" } },
         { "Minecraft", new[] { "Minecraft" } },
         { "Starfield", new[] { "Starfield" } },
-        { "State of Decay 2", new[] { "StateofDecay2" } },
-        { "Grounded", new[] { "Grounded" } },
-        { "Pentiment", new[] { "Pentiment" } },
-        { "Hi-Fi Rush", new[] { "HiFiRush", "Hi-Fi Rush" } },
-        { "Redfall", new[] { "Redfall" } },
-        
-        // 第三方热门
-        { "Back 4 Blood", new[] { "Back4Blood" } },
-        { "A Plague Tale", new[] { "APlagueTale" } },
-        { "Psychonauts 2", new[] { "Psychonauts2" } },
-        { "Atomic Heart", new[] { "AtomicHeart" } },
-        { "Lies of P", new[] { "LiesofP" } },
-        { "Dead Space", new[] { "DeadSpace" } },
-        { "It Takes Two", new[] { "ItTakesTwo" } },
-        { "Outer Worlds", new[] { "OuterWorlds" } },
-        { "Dishonored", new[] { "Dishonored" } },
-        { "Doom Eternal", new[] { "DoomEternal" } },
-        { "Prey", new[] { "Prey" } },
-        { "Wolfenstein", new[] { "Wolfenstein" } },
-        { "Fallout 76", new[] { "Fallout76" } },
-        { "Fallout 4", new[] { "Fallout4" } },
-        { "Elder Scrolls Online", new[] { "ElderScrollsOnline", "ESO" } },
-        { "Skyrim", new[] { "Skyrim" } },
+        { "Hi-Fi Rush", new[] { "HiFiRush" } },
     };
 
     /// <summary>
@@ -1791,32 +1689,18 @@ public class GameService
     }
 
     /// <summary>
-    /// 需要排除的 WeGame 目录
-    /// WeGame 已知游戏白名单
+    /// WeGame 已知游戏白名单 - 懒加载
     /// </summary>
-    private static readonly Dictionary<string, string[]> KnownWeGameGames = new(StringComparer.OrdinalIgnoreCase)
+    private static Dictionary<string, string[]> KnownWeGameGames => 
+        (_knownWeGameGames ??= new Lazy<Dictionary<string, string[]>>(BuildKnownWeGameGames)).Value;
+
+    private static Dictionary<string, string[]> BuildKnownWeGameGames() => new(StringComparer.OrdinalIgnoreCase)
     {
-        // 腾讯热门游戏
-        { "英雄联盟", new[] { "英雄联盟", "League of Legends", "LOL", "LeagueClient.exe" } },
-        { "穿越火线", new[] { "穿越火线", "CrossFire", "CF", "crossfire.exe" } },
-        { "地下城与勇士", new[] { "地下城与勇士", "DNF", "DNF.exe" } },
-        { "QQ飞车", new[] { "QQ飞车", "QQSpeed", "GameApp.exe" } },
-        { "逆战", new[] { "逆战", "NZ", "nz.exe" } },
-        { "QQ炫舞", new[] { "QQ炫舞", "QQX5", "x5.exe" } },
-        { "使命召唤Online", new[] { "使命召唤Online", "CODOL" } },
-        { "火影忍者", new[] { "火影忍者", "Naruto" } },
-        { "NBA2K Online", new[] { "NBA2K", "NBA2KOL" } },
-        { "FIFA Online", new[] { "FIFA", "FIFAOnline" } },
-        { "三角洲行动", new[] { "三角洲", "Delta Force", "DeltaForce" } },
-        { "怪物猎人OL", new[] { "怪物猎人", "MonsterHunter" } },
-        { "剑灵", new[] { "剑灵", "BladeSoul", "BNS" } },
-        { "天涯明月刀", new[] { "天涯明月刀", "天刀", "Moonlight" } },
-        { "御龙在天", new[] { "御龙在天" } },
-        { "枪神纪", new[] { "枪神纪" } },
-        { "战争雷霆", new[] { "战争雷霆", "WarThunder" } },
-        { "坦克世界", new[] { "坦克世界", "WorldofTanks", "WOT" } },
-        { "战舰世界", new[] { "战舰世界", "WorldofWarships", "WOWS" } },
-        { "刀塔霸业", new[] { "刀塔霸业", "Underlords" } },
+        // 精简为最热门的游戏
+        { "英雄联盟", new[] { "英雄联盟", "LOL", "LeagueClient.exe" } },
+        { "穿越火线", new[] { "穿越火线", "crossfire.exe" } },
+        { "地下城与勇士", new[] { "DNF", "DNF.exe" } },
+        { "三角洲行动", new[] { "三角洲", "DeltaForce" } },
     };
 
     /// <summary>
@@ -2236,14 +2120,22 @@ public class GameService
     }
 
     /// <summary>
-    /// 启动游戏监控
+    /// 启动游戏监控（降低频率以减少资源占用）
     /// </summary>
-    public void StartGameMonitor(int intervalMs = 2000)
+    public void StartGameMonitor(int intervalMs = 3000) // 从 2000ms 提高到 3000ms
     {
         _gameMonitorTimer?.Stop();
+        _gameMonitorTimer?.Dispose();
         _gameMonitorTimer = new System.Timers.Timer(intervalMs);
-        _gameMonitorTimer.Elapsed += (s, e) => CheckRunningGames();
+        _gameMonitorTimer.Elapsed += GameMonitorTimer_Elapsed;
+        _gameMonitorTimer.AutoReset = true;
         _gameMonitorTimer.Start();
+    }
+
+    private void GameMonitorTimer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        if (_disposed) return;
+        CheckRunningGames();
     }
 
     /// <summary>
@@ -2251,9 +2143,34 @@ public class GameService
     /// </summary>
     public void StopGameMonitor()
     {
-        _gameMonitorTimer?.Stop();
-        _gameMonitorTimer?.Dispose();
-        _gameMonitorTimer = null;
+        if (_gameMonitorTimer != null)
+        {
+            _gameMonitorTimer.Stop();
+            _gameMonitorTimer.Elapsed -= GameMonitorTimer_Elapsed;
+            _gameMonitorTimer.Dispose();
+            _gameMonitorTimer = null;
+        }
+    }
+
+    /// <summary>
+    /// 释放资源
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        
+        StopGameMonitor();
+        
+        // 清理事件
+        OnGameStarted = null;
+        OnGameStopped = null;
+        
+        // 清理游戏列表
+        _games.Clear();
+        _games.TrimExcess();
+        
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>

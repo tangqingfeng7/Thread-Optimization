@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using ThreadOptimization.Services;
 using ThreadOptimization.ViewModels;
@@ -9,6 +10,12 @@ namespace ThreadOptimization;
 /// </summary>
 public partial class MainWindow : Window
 {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
+    
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
     private TrayService? _trayService;
     private bool _isClosing;
     private bool _dontAskAgain;
@@ -18,6 +25,36 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         InitializeTray();
+        
+        // 窗口加载完成后优化内存
+        Loaded += (s, e) => OptimizeMemoryDelayed();
+    }
+    
+    /// <summary>
+    /// 延迟优化内存（让 UI 先完成渲染）
+    /// </summary>
+    private async void OptimizeMemoryDelayed()
+    {
+        await Task.Delay(2000); // 等待2秒让程序稳定
+        OptimizeMemory();
+    }
+    
+    /// <summary>
+    /// 优化内存
+    /// </summary>
+    private void OptimizeMemory()
+    {
+        try
+        {
+            GC.Collect(2, GCCollectionMode.Optimized, false);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Optimized, false);
+            SetProcessWorkingSetSize(GetCurrentProcess(), (IntPtr)(-1), (IntPtr)(-1));
+        }
+        catch
+        {
+            // 忽略优化错误
+        }
     }
 
     private void InitializeTray()
@@ -54,10 +91,24 @@ public partial class MainWindow : Window
             Hide();
             _trayService?.ShowBalloonTip("Thread Optimization", "程序已最小化到系统托盘，双击图标可恢复窗口");
             
-            // 最小化时释放内存
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
+            // 最小化时积极释放内存
+            Task.Run(() =>
+            {
+                try
+                {
+                    // 强制完整 GC
+                    GC.Collect(2, GCCollectionMode.Forced, true, true);
+                    GC.WaitForPendingFinalizers();
+                    GC.Collect(2, GCCollectionMode.Forced, true, true);
+                    
+                    // 释放工作集到页面文件
+                    SetProcessWorkingSetSize(GetCurrentProcess(), (IntPtr)(-1), (IntPtr)(-1));
+                }
+                catch
+                {
+                    // 忽略
+                }
+            });
         }
     }
 

@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -16,6 +18,16 @@ namespace ThreadOptimization.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
+    #region Native Methods for Memory Optimization
+    
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
+    
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+    
+    #endregion
+
     private readonly CpuService _cpuService;
     private readonly ProcessService _processService;
     private readonly AffinityService _affinityService;
@@ -23,7 +35,11 @@ public partial class MainViewModel : ObservableObject
     private readonly NumaService _numaService;
     private readonly DispatcherTimer _autoScanTimer;
     private readonly DispatcherTimer _statsTimer;
+    private readonly DispatcherTimer _memoryOptimizeTimer; // 定期内存优化
+    private readonly List<WeakReference<CpuCore>> _subscribedCores = new(); // 跟踪订阅的核心
     private AppConfig _config;
+    private DateTime _lastGcTime = DateTime.MinValue;
+    private const int GC_INTERVAL_SECONDS = 300; // 5分钟GC一次
 
     [ObservableProperty]
     private CpuInfo? _cpuInfo;
@@ -165,11 +181,16 @@ public partial class MainViewModel : ObservableObject
         _numaService = new NumaService();
         _config = AppConfig.Load();
 
-        _autoScanTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _autoScanTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; // 降低频率 3->5秒
         _autoScanTimer.Tick += AutoScanTimer_Tick;
         
         _statsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _statsTimer.Tick += StatsTimer_Tick;
+
+        // 定期内存优化定时器（每5分钟检查一次）
+        _memoryOptimizeTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+        _memoryOptimizeTimer.Tick += MemoryOptimizeTimer_Tick;
+        _memoryOptimizeTimer.Start();
 
         InitializeCpuInfo();
         InitializePresets();
@@ -181,12 +202,72 @@ public partial class MainViewModel : ObservableObject
         LoadGames();
         UpdateSelectedCoreCount();
 
+        // 初始化完成后释放一次内存
+        OptimizeMemoryAsync();
+
         if (_config.AutoApplyOnStart && !string.IsNullOrEmpty(TargetProcessName))
         {
             Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
                 ApplyConfig();
             }), DispatcherPriority.Loaded);
+        }
+    }
+
+    /// <summary>
+    /// 定期内存优化
+    /// </summary>
+    private void MemoryOptimizeTimer_Tick(object? sender, EventArgs e)
+    {
+        // 检查是否需要 GC
+        if ((DateTime.Now - _lastGcTime).TotalSeconds >= GC_INTERVAL_SECONDS)
+        {
+            OptimizeMemoryAsync();
+        }
+    }
+
+    /// <summary>
+    /// 异步优化内存
+    /// </summary>
+    private async void OptimizeMemoryAsync()
+    {
+        await Task.Run(() =>
+        {
+            try
+            {
+                // 清理集合多余容量
+                TrimCollections();
+                
+                // 强制 GC
+                GC.Collect(2, GCCollectionMode.Optimized, false);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Optimized, false);
+
+                // 释放工作集（将不活跃内存换到页面文件）
+                SetProcessWorkingSetSize(GetCurrentProcess(), (IntPtr)(-1), (IntPtr)(-1));
+                
+                _lastGcTime = DateTime.Now;
+            }
+            catch
+            {
+                // 忽略优化错误
+            }
+        });
+    }
+
+    /// <summary>
+    /// 清理集合多余容量
+    /// </summary>
+    private void TrimCollections()
+    {
+        try
+        {
+            // ObservableCollection 没有 TrimExcess，但我们可以清理弱引用列表
+            _subscribedCores.RemoveAll(wr => !wr.TryGetTarget(out _));
+        }
+        catch
+        {
+            // 忽略
         }
     }
     
@@ -232,6 +313,9 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            // 先取消之前的订阅
+            UnsubscribeCoreEvents();
+            
             CpuInfo = _cpuService.GetCpuInfo();
             CpuName = CpuInfo.Name;
             CoreSummary = _cpuService.GetCoreSummary(CpuInfo);
@@ -247,13 +331,10 @@ public partial class MainViewModel : ObservableObject
 
             foreach (var core in CpuInfo.Cores)
             {
-                core.PropertyChanged += (s, e) =>
-                {
-                    if (e.PropertyName == nameof(CpuCore.IsSelected))
-                    {
-                        UpdateSelectedCoreCount();
-                    }
-                };
+                // 使用命名方法而非 lambda，便于取消订阅
+                core.PropertyChanged += Core_PropertyChanged;
+                _subscribedCores.Add(new WeakReference<CpuCore>(core));
+                
                 Cores.Add(core);
                 AvailablePriorityCores.Add(core);
             }
@@ -268,6 +349,32 @@ public partial class MainViewModel : ObservableObject
             CpuName = "CPU 检测失败";
             LogMessage = $"错误: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// 核心属性变化处理（避免使用 lambda 导致内存泄漏）
+    /// </summary>
+    private void Core_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CpuCore.IsSelected))
+        {
+            UpdateSelectedCoreCount();
+        }
+    }
+
+    /// <summary>
+    /// 取消所有核心事件订阅
+    /// </summary>
+    private void UnsubscribeCoreEvents()
+    {
+        foreach (var weakRef in _subscribedCores)
+        {
+            if (weakRef.TryGetTarget(out var core))
+            {
+                core.PropertyChanged -= Core_PropertyChanged;
+            }
+        }
+        _subscribedCores.Clear();
     }
 
     private void UpdateSelectedCoreCount()
@@ -1466,12 +1573,41 @@ public partial class MainViewModel : ObservableObject
 
     public void Cleanup()
     {
+        // 停止所有定时器
         _autoScanTimer.Stop();
         _statsTimer.Stop();
+        _memoryOptimizeTimer.Stop();
+        
+        // 取消核心事件订阅（防止内存泄漏）
+        UnsubscribeCoreEvents();
+        
+        // 取消游戏服务事件
+        _gameService.OnGameStarted -= null;
+        _gameService.OnGameStopped -= null;
+        
+        // 停止服务
         _affinityService.StopMonitoring();
         _gameService.StopGameMonitor();
+        
+        // 保存配置
         _gameService.SaveGames();
         SaveConfig();
         SaveProcessGroups();
+        
+        // 清理集合
+        Cores.Clear();
+        AvailablePriorityCores.Clear();
+        ProcessGroups.Clear();
+        MonitoredProcesses.Clear();
+        Games.Clear();
+        NumaNodes.Clear();
+        Profiles.Clear();
+        Presets.Clear();
+        
+        // 最终内存清理
+        GC.Collect(2, GCCollectionMode.Forced, true);
+        GC.WaitForPendingFinalizers();
+        GC.Collect(2, GCCollectionMode.Forced, true);
+        SetProcessWorkingSetSize(GetCurrentProcess(), (IntPtr)(-1), (IntPtr)(-1));
     }
 }

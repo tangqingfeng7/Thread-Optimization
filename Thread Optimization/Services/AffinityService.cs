@@ -279,10 +279,29 @@ public class AffinityService
     /// </summary>
     public void StopMonitoring()
     {
-        _monitorCts?.Cancel();
-        _monitorCts?.Dispose();
-        _monitorCts = null;
-        _monitorTask = null;
+        try
+        {
+            _monitorCts?.Cancel();
+            
+            // 等待任务完成
+            if (_monitorTask != null && !_monitorTask.IsCompleted)
+            {
+                _monitorTask.Wait(TimeSpan.FromSeconds(2));
+            }
+        }
+        catch
+        {
+            // 忽略取消异常
+        }
+        finally
+        {
+            _monitorCts?.Dispose();
+            _monitorCts = null;
+            _monitorTask = null;
+            
+            // 重置轮询索引
+            _roundRobinIndex = 0;
+        }
     }
 
     private long CalculateD2Mask(long baseMask, int? priorityCoreIndex)

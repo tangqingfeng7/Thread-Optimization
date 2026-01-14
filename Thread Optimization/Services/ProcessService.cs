@@ -49,11 +49,12 @@ public class ProcessService
     }
 
     /// <summary>
-    /// 获取所有运行中的进程
+    /// 获取所有运行中的进程（优化内存分配）
     /// </summary>
     public List<ProcessInfo> GetAllProcesses()
     {
-        var result = new List<ProcessInfo>();
+        // 预分配合理的容量，减少重新分配
+        var result = new List<ProcessInfo>(64);
         
         try
         {
@@ -84,7 +85,12 @@ public class ProcessService
             // 忽略错误
         }
 
-        return result.OrderBy(p => p.ProcessName).ToList();
+        // 排序后释放多余容量
+        var sorted = result.OrderBy(p => p.ProcessName).ToList();
+        result.Clear();
+        result.TrimExcess();
+        
+        return sorted;
     }
 
     /// <summary>
