@@ -20,9 +20,25 @@ public class AffinityService
     
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr hObject);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetPriorityClass(IntPtr hProcess, uint dwPriorityClass);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetProcessPriorityBoost(IntPtr hProcess, bool disablePriorityBoost);
+
+    [DllImport("ntdll.dll", SetLastError = true)]
+    private static extern int NtSetInformationProcess(IntPtr processHandle, int processInformationClass, ref int processInformation, int processInformationLength);
     
     private const int THREAD_SET_INFORMATION = 0x0020;
     private const int THREAD_QUERY_INFORMATION = 0x0040;
+    private const int ProcessIoPriority = 33;
+    
+    // IO 优先级常量
+    public const int IO_PRIORITY_VERY_LOW = 0;
+    public const int IO_PRIORITY_LOW = 1;
+    public const int IO_PRIORITY_NORMAL = 2;
+    public const int IO_PRIORITY_HIGH = 3;
 
     private readonly ProcessService _processService;
     private CancellationTokenSource? _monitorCts;
@@ -395,4 +411,156 @@ public class AffinityService
 
         return (success, failed);
     }
+
+    /// <summary>
+    /// 设置进程的IO优先级
+    /// </summary>
+    public bool SetProcessIoPriority(int processId, int ioPriority)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            int priority = ioPriority;
+            int result = NtSetInformationProcess(process.Handle, ProcessIoPriority, ref priority, sizeof(int));
+            return result == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 禁用进程的优先级提升（可以提高性能稳定性）
+    /// </summary>
+    public bool DisablePriorityBoost(int processId, bool disable = true)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return SetProcessPriorityBoost(process.Handle, disable);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 应用完整的游戏优化配置
+    /// </summary>
+    public GameOptimizeResult OptimizeForGaming(int processId, long affinityMask, bool applyToThreads = true)
+    {
+        var result = new GameOptimizeResult { ProcessId = processId };
+
+        try
+        {
+            // 1. 设置CPU亲和性
+            result.AffinitySet = SetProcessAffinity(processId, affinityMask);
+            
+            // 2. 设置线程亲和性
+            if (applyToThreads)
+            {
+                result.ThreadsAffected = SetThreadsAffinity(processId, affinityMask);
+            }
+
+            // 3. 设置高优先级
+            result.PrioritySet = SetProcessPriority(processId, ProcessPriorityLevel.High);
+
+            // 4. 设置高IO优先级
+            result.IoPrioritySet = SetProcessIoPriority(processId, IO_PRIORITY_HIGH);
+
+            // 5. 禁用优先级提升（提高稳定性）
+            result.PriorityBoostDisabled = DisablePriorityBoost(processId, true);
+
+            result.Success = result.AffinitySet && result.PrioritySet;
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.ErrorMessage = ex.Message;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 降低后台进程优先级（释放资源给游戏）
+    /// </summary>
+    public int ThrottleBackgroundProcesses(IEnumerable<string> excludeProcessNames)
+    {
+        int throttledCount = 0;
+        var excludeSet = new HashSet<string>(excludeProcessNames, StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    // 跳过排除的进程
+                    if (excludeSet.Contains(process.ProcessName))
+                    {
+                        process.Dispose();
+                        continue;
+                    }
+
+                    // 跳过系统进程
+                    if (process.SessionId == 0)
+                    {
+                        process.Dispose();
+                        continue;
+                    }
+
+                    // 跳过已经是低优先级的进程
+                    if (process.PriorityClass <= ProcessPriorityClass.BelowNormal)
+                    {
+                        process.Dispose();
+                        continue;
+                    }
+
+                    // 降低优先级
+                    process.PriorityClass = ProcessPriorityClass.BelowNormal;
+                    
+                    // 设置低IO优先级
+                    SetProcessIoPriority(process.Id, IO_PRIORITY_LOW);
+                    
+                    throttledCount++;
+                }
+                catch
+                {
+                    // 忽略无权限的进程
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+        }
+        catch
+        {
+            // 忽略错误
+        }
+
+        return throttledCount;
+    }
+}
+
+/// <summary>
+/// 游戏优化结果
+/// </summary>
+public class GameOptimizeResult
+{
+    public int ProcessId { get; set; }
+    public bool Success { get; set; }
+    public bool AffinitySet { get; set; }
+    public int ThreadsAffected { get; set; }
+    public bool PrioritySet { get; set; }
+    public bool IoPrioritySet { get; set; }
+    public bool PriorityBoostDisabled { get; set; }
+    public string ErrorMessage { get; set; } = string.Empty;
+
+    public string Summary => Success 
+        ? $"优化成功: 亲和性={AffinitySet}, 线程={ThreadsAffected}, 优先级={PrioritySet}"
+        : $"优化失败: {ErrorMessage}";
 }

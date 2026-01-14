@@ -17,6 +17,7 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="SingleBorderWindow"
         ResizeMode="CanResizeWithGrip"
+        Icon="Assets/app.ico"
         Closing="Window_Closing"
         StateChanged="Window_StateChanged">
     
@@ -81,40 +82,6 @@
             </StackPanel>
             
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
-                <!-- 实时监控面板 -->
-                <Border Background="#F5F5F7" CornerRadius="8" Padding="16,8" Margin="0,0,16,0"
-                        Visibility="{Binding EnableRealtimeMonitor, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <StackPanel Orientation="Horizontal">
-                        <!-- CPU使用率 -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                            <TextBlock Text="CPU" FontSize="11" Foreground="#86868B" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <TextBlock Text="{Binding CpuUsageText}" FontSize="14" FontWeight="SemiBold" 
-                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                        </StackPanel>
-                        
-                        <!-- CPU频率 -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                            <TextBlock Text="频率" FontSize="11" Foreground="#86868B" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <TextBlock Text="{Binding CpuFrequencyText}" FontSize="14" FontWeight="SemiBold" 
-                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                        </StackPanel>
-                        
-                        <!-- CPU温度 -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                            <TextBlock Text="温度" FontSize="11" Foreground="#86868B" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <TextBlock Text="{Binding CpuTemperatureText}" FontSize="14" FontWeight="SemiBold" 
-                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                        </StackPanel>
-                        
-                        <!-- 内存 -->
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="内存" FontSize="11" Foreground="#86868B" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <TextBlock Text="{Binding MemoryUsageText}" FontSize="14" FontWeight="SemiBold" 
-                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-                
                 <TextBlock Text="{Binding CoreSummary}" 
                            FontSize="13"
                            Foreground="{StaticResource TextSecondaryBrush}"
@@ -399,29 +366,6 @@
                                                                    Foreground="{Binding IsSelected, Converter={StaticResource CoreSelectedToForegroundConverter}}"/>
                                                     </StackPanel>
                                                     
-                                                    <!-- 使用率指示条 -->
-                                                    <Border VerticalAlignment="Bottom" Height="4" CornerRadius="0,0,10,10"
-                                                            Visibility="{Binding DataContext.ShowPerCoreUsage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
-                                                        <Border.Background>
-                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                                <GradientStop Color="#30D158" Offset="0"/>
-                                                                <GradientStop Color="#FF9F0A" Offset="0.5"/>
-                                                                <GradientStop Color="#FF3B30" Offset="1"/>
-                                                            </LinearGradientBrush>
-                                                        </Border.Background>
-                                                        <Border.OpacityMask>
-                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                                <GradientStop Color="Black" Offset="{Binding Usage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Percent}"/>
-                                                                <GradientStop Color="Transparent" Offset="{Binding Usage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Percent}"/>
-                                                            </LinearGradientBrush>
-                                                        </Border.OpacityMask>
-                                                    </Border>
-                                                    
-                                                    <!-- 使用率文本 -->
-                                                    <TextBlock Text="{Binding UsageText}" FontSize="8" Opacity="0.6"
-                                                               HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,6,6"
-                                                               Foreground="{Binding IsSelected, Converter={StaticResource CoreSelectedToForegroundConverter}}"
-                                                               Visibility="{Binding DataContext.ShowPerCoreUsage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                                 </Grid>
                                             </Border>
                                             <ControlTemplate.Triggers>

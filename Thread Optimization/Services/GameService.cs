@@ -20,6 +20,155 @@ public class GameService
     public event Action<GameInfo>? OnGameStarted;
     public event Action<GameInfo>? OnGameStopped;
 
+    /// <summary>
+    /// 常见游戏进程名数据库 - 用于精确匹配
+    /// </summary>
+    private static readonly Dictionary<string, string[]> KnownGameProcesses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Steam 热门游戏
+        { "Counter-Strike 2", new[] { "cs2" } },
+        { "Counter-Strike: Global Offensive", new[] { "csgo" } },
+        { "Dota 2", new[] { "dota2" } },
+        { "PUBG: BATTLEGROUNDS", new[] { "TslGame", "PUBG" } },
+        { "Grand Theft Auto V", new[] { "GTA5", "PlayGTAV" } },
+        { "Apex Legends", new[] { "r5apex" } },
+        { "Rust", new[] { "RustClient" } },
+        { "ARK: Survival Evolved", new[] { "ShooterGame" } },
+        { "Monster Hunter: World", new[] { "MonsterHunterWorld" } },
+        { "Monster Hunter Rise", new[] { "MonsterHunterRise" } },
+        { "Elden Ring", new[] { "eldenring" } },
+        { "Dark Souls III", new[] { "DarkSoulsIII" } },
+        { "Sekiro", new[] { "sekiro" } },
+        { "Cyberpunk 2077", new[] { "Cyberpunk2077" } },
+        { "The Witcher 3", new[] { "witcher3" } },
+        { "Red Dead Redemption 2", new[] { "RDR2" } },
+        { "Baldur's Gate 3", new[] { "bg3", "bg3_dx11" } },
+        { "Hogwarts Legacy", new[] { "HogwartsLegacy" } },
+        { "Palworld", new[] { "Palworld-Win64-Shipping" } },
+        { "Helldivers 2", new[] { "helldivers2" } },
+        { "Path of Exile", new[] { "PathOfExile", "PathOfExile_x64" } },
+        { "Lost Ark", new[] { "LOSTARK" } },
+        { "New World", new[] { "NewWorld" } },
+        { "Destiny 2", new[] { "destiny2" } },
+        { "Warframe", new[] { "Warframe.x64" } },
+        { "Dead by Daylight", new[] { "DeadByDaylight-Win64-Shipping" } },
+        { "Rainbow Six Siege", new[] { "RainbowSix", "RainbowSix_Vulkan" } },
+        { "Forza Horizon 5", new[] { "ForzaHorizon5" } },
+        { "Forza Horizon 4", new[] { "ForzaHorizon4" } },
+        { "Euro Truck Simulator 2", new[] { "eurotrucks2" } },
+        { "American Truck Simulator", new[] { "amtrucks" } },
+        { "Cities: Skylines", new[] { "Cities" } },
+        { "Cities: Skylines II", new[] { "Cities2" } },
+        { "Stellaris", new[] { "stellaris" } },
+        { "Hearts of Iron IV", new[] { "hoi4" } },
+        { "Europa Universalis IV", new[] { "eu4" } },
+        { "Crusader Kings III", new[] { "ck3" } },
+        { "Total War: WARHAMMER III", new[] { "Warhammer3" } },
+        { "Total War: THREE KINGDOMS", new[] { "Three_Kingdoms" } },
+        { "Civilization VI", new[] { "CivilizationVI", "CivilizationVI_DX12" } },
+        { "Age of Empires IV", new[] { "RelicCardinal" } },
+        { "Starcraft II", new[] { "SC2_x64", "SC2" } },
+        { "Diablo IV", new[] { "Diablo IV" } },
+        { "No Man's Sky", new[] { "NMS" } },
+        { "Satisfactory", new[] { "FactoryGame-Win64-Shipping" } },
+        { "Valheim", new[] { "valheim" } },
+        { "Terraria", new[] { "Terraria" } },
+        { "Stardew Valley", new[] { "Stardew Valley" } },
+        { "Hades", new[] { "Hades" } },
+        { "Hades II", new[] { "Hades2" } },
+        { "Hollow Knight", new[] { "hollow_knight" } },
+        { "Celeste", new[] { "Celeste" } },
+        { "Resident Evil 4", new[] { "re4" } },
+        { "Resident Evil Village", new[] { "re8" } },
+        { "Devil May Cry 5", new[] { "DevilMayCry5" } },
+        { "Street Fighter 6", new[] { "StreetFighter6" } },
+        { "Tekken 8", new[] { "Tekken8-Win64-Shipping" } },
+        { "Mortal Kombat 1", new[] { "MK12" } },
+        { "EA SPORTS FC 24", new[] { "FC24" } },
+        { "NBA 2K24", new[] { "NBA2K24" } },
+        { "Assassin's Creed Valhalla", new[] { "ACValhalla", "ACValhalla_Plus" } },
+        { "Assassin's Creed Mirage", new[] { "ACMirage" } },
+        { "Far Cry 6", new[] { "FarCry6" } },
+        { "Watch Dogs: Legion", new[] { "WatchDogsLegion" } },
+        { "Tom Clancy's Ghost Recon Breakpoint", new[] { "GRB", "GRB_vulkan" } },
+        { "The Division 2", new[] { "TheDivision2", "TheDivision2_dx12" } },
+        { "Dying Light 2", new[] { "DyingLightGame_x64_rwdi" } },
+        { "Horizon Zero Dawn", new[] { "HorizonZeroDawn" } },
+        { "God of War", new[] { "GoW" } },
+        { "Spider-Man Remastered", new[] { "Spider-Man" } },
+        { "Ghostwire: Tokyo", new[] { "GhostwireTokyo-Win64-Shipping" } },
+        { "Atomic Heart", new[] { "AtomicHeart-Win64-Shipping" } },
+        { "Lies of P", new[] { "LOP-Win64-Shipping" } },
+        { "Remnant II", new[] { "Remnant2-Win64-Shipping" } },
+        { "Starfield", new[] { "Starfield" } },
+        { "The Elder Scrolls V: Skyrim", new[] { "SkyrimSE", "TESV" } },
+        { "Fallout 4", new[] { "Fallout4" } },
+        { "Fallout 76", new[] { "Fallout76" } },
+        
+        // Epic Games
+        { "Fortnite", new[] { "FortniteClient-Win64-Shipping" } },
+        { "Rocket League", new[] { "RocketLeague" } },
+        { "Fall Guys", new[] { "FallGuys_client_game" } },
+        
+        // 暴雪游戏
+        { "魔兽世界", new[] { "Wow", "WowClassic" } },
+        { "World of Warcraft", new[] { "Wow", "WowClassic" } },
+        { "守望先锋", new[] { "Overwatch" } },
+        { "Overwatch", new[] { "Overwatch" } },
+        { "炉石传说", new[] { "Hearthstone" } },
+        { "Hearthstone", new[] { "Hearthstone" } },
+        { "暗黑破坏神III", new[] { "Diablo III64", "Diablo III" } },
+        { "暗黑破坏神IV", new[] { "Diablo IV" } },
+        { "星际争霸II", new[] { "SC2_x64", "SC2" } },
+        { "风暴英雄", new[] { "HeroesOfTheStorm_x64" } },
+        { "使命召唤", new[] { "cod", "ModernWarfare" } },
+        
+        // Riot Games
+        { "英雄联盟", new[] { "League of Legends" } },
+        { "League of Legends", new[] { "League of Legends" } },
+        { "VALORANT", new[] { "VALORANT-Win64-Shipping" } },
+        { "云顶之弈", new[] { "League of Legends" } },
+        
+        // 其他
+        { "原神", new[] { "GenshinImpact", "YuanShen" } },
+        { "Genshin Impact", new[] { "GenshinImpact", "YuanShen" } },
+        { "崩坏：星穹铁道", new[] { "StarRail" } },
+        { "Honkai: Star Rail", new[] { "StarRail" } },
+        { "绝区零", new[] { "ZenlessZoneZero" } },
+        { "鸣潮", new[] { "Wuthering Waves", "Client-Win64-Shipping" } },
+        { "永劫无间", new[] { "NarakaBladepoint" } },
+        { "逆水寒", new[] { "nshn" } },
+        { "梦幻西游", new[] { "my" } },
+        { "剑网3", new[] { "JX3ClientX64" } },
+        { "穿越火线", new[] { "crossfire" } },
+        { "DNF", new[] { "DNF" } },
+        { "地下城与勇士", new[] { "DNF" } },
+        { "QQ飞车", new[] { "GameApp" } },
+        { "三角洲行动", new[] { "DeltaForce", "DeltaForce-Win64-Shipping", "deltaforce" } },
+        { "Delta Force", new[] { "DeltaForce", "DeltaForce-Win64-Shipping", "deltaforce" } },
+        { "Delta Force: Hawk Ops", new[] { "DeltaForce", "DeltaForce-Win64-Shipping", "deltaforce" } },
+    };
+
+    /// <summary>
+    /// 需要排除的可执行文件关键词
+    /// </summary>
+    private static readonly string[] ExcludedExeKeywords = 
+    {
+        "unins", "uninst", "setup", "install", "config", "crash", "report", 
+        "updater", "update", "redist", "vcredist", "dxsetup", "dotnet", 
+        "ue4prereq", "physx", "directx", "easyanticheat", "battleye",
+        "helper", "tool", "util", "editor", "server", "dedicated",
+        "benchmark", "diagnostic", "repair", "patch", "prerequisite"
+    };
+
+    /// <summary>
+    /// 应该优先选择的可执行文件关键词
+    /// </summary>
+    private static readonly string[] PreferredExeKeywords =
+    {
+        "game", "play", "start", "main", "win64", "x64", "shipping", "client"
+    };
+
     public GameService(ProcessService processService)
     {
         _processService = processService;
@@ -78,9 +227,456 @@ public class GameService
             // 扫描 WeGame 游戏
             var wegameGames = ScanWeGameGames();
             allGames.AddRange(wegameGames);
+
+            // 扫描网易游戏（永劫无间等）
+            var neteaseGames = ScanNeteaseGames();
+            allGames.AddRange(neteaseGames);
+
+            // 扫描腾讯游戏（三角洲行动等）
+            var tencentGames = ScanTencentGames();
+            allGames.AddRange(tencentGames);
         });
 
         return allGames;
+    }
+
+    /// <summary>
+    /// 扫描腾讯游戏（三角洲行动等）
+    /// </summary>
+    public List<GameInfo> ScanTencentGames()
+    {
+        var games = new List<GameInfo>();
+
+        // 腾讯游戏定义
+        var tencentGameDefs = new Dictionary<string, string[]>
+        {
+            { "三角洲行动", new[] { "DeltaForce.exe", "DeltaForce-Win64-Shipping.exe", "deltaforce.exe", "game.exe" } },
+            { "Delta Force", new[] { "DeltaForce.exe", "DeltaForce-Win64-Shipping.exe", "deltaforce.exe", "game.exe" } },
+            { "穿越火线", new[] { "crossfire.exe", "cf.exe" } },
+            { "CrossFire", new[] { "crossfire.exe", "cf.exe" } },
+            { "QQ飞车", new[] { "GameApp.exe", "QQSpeed.exe" } },
+            { "QQ炫舞", new[] { "QQX5.exe", "x5.exe" } },
+            { "DNF", new[] { "DNF.exe" } },
+            { "地下城与勇士", new[] { "DNF.exe" } },
+            { "逆战", new[] { "NZ.exe", "nz.exe" } },
+            { "使命召唤手游", new[] { "CODM.exe" } },
+            { "王者荣耀", new[] { "GameCenter.exe" } },
+            { "和平精英", new[] { "PUBGM.exe", "GameLoop.exe" } },
+        };
+
+        try
+        {
+            // 1. 从注册表查找三角洲行动
+            var deltaForcePath = GetDeltaForceInstallPathFromRegistry();
+            if (!string.IsNullOrEmpty(deltaForcePath) && Directory.Exists(deltaForcePath))
+            {
+                TryAddDeltaForce(games, deltaForcePath);
+            }
+
+            // 2. 搜索常见安装路径
+            var searchPaths = new List<string>
+            {
+                // 腾讯游戏目录
+                @"C:\腾讯游戏",
+                @"D:\腾讯游戏",
+                @"E:\腾讯游戏",
+                @"F:\腾讯游戏",
+                @"C:\Tencent Games",
+                @"D:\Tencent Games",
+                @"E:\Tencent Games",
+                @"C:\Program Files\腾讯游戏",
+                @"D:\Program Files\腾讯游戏",
+                @"C:\Program Files (x86)\腾讯游戏",
+                @"D:\Program Files (x86)\腾讯游戏",
+                
+                // 三角洲行动常见路径
+                @"C:\三角洲行动",
+                @"D:\三角洲行动",
+                @"E:\三角洲行动",
+                @"C:\Delta Force",
+                @"D:\Delta Force",
+                @"E:\Delta Force",
+                @"C:\DeltaForce",
+                @"D:\DeltaForce",
+                @"E:\DeltaForce",
+                
+                // Games 目录
+                @"C:\Games",
+                @"D:\Games",
+                @"E:\Games",
+                @"C:\Program Files\Tencent",
+                @"D:\Program Files\Tencent",
+                
+                // WeGame 目录下也可能有
+                @"C:\WeGame",
+                @"D:\WeGame",
+                @"E:\WeGame",
+                @"C:\Program Files (x86)\WeGame",
+                @"D:\Program Files (x86)\WeGame",
+            };
+
+            foreach (var basePath in searchPaths.Distinct())
+            {
+                if (!Directory.Exists(basePath)) continue;
+
+                try
+                {
+                    var dirName = Path.GetFileName(basePath);
+                    
+                    // 检查是否直接是三角洲目录
+                    if (dirName.Contains("三角洲") || 
+                        dirName.Contains("Delta", StringComparison.OrdinalIgnoreCase) ||
+                        dirName.Contains("DeltaForce", StringComparison.OrdinalIgnoreCase))
+                    {
+                        TryAddDeltaForce(games, basePath);
+                        continue;
+                    }
+
+                    // 搜索子目录
+                    foreach (var gameDir in Directory.GetDirectories(basePath))
+                    {
+                        var subDirName = Path.GetFileName(gameDir);
+                        
+                        // 三角洲行动
+                        if (subDirName.Contains("三角洲") || 
+                            subDirName.Contains("Delta Force", StringComparison.OrdinalIgnoreCase) ||
+                            subDirName.Contains("DeltaForce", StringComparison.OrdinalIgnoreCase))
+                        {
+                            TryAddDeltaForce(games, gameDir);
+                        }
+                        // 其他腾讯游戏
+                        else
+                        {
+                            foreach (var (gameName, exeNames) in tencentGameDefs)
+                            {
+                                if (subDirName.Contains(gameName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    foreach (var exeName in exeNames)
+                                    {
+                                        var exePath = FindFileRecursive(gameDir, exeName);
+                                        if (!string.IsNullOrEmpty(exePath) && 
+                                            !games.Any(g => g.ExecutablePath.Equals(exePath, StringComparison.OrdinalIgnoreCase)))
+                                        {
+                                            games.Add(new GameInfo
+                                            {
+                                                Name = gameName,
+                                                Platform = GamePlatform.WeGame,
+                                                InstallPath = gameDir,
+                                                ExecutablePath = exePath,
+                                                ProcessName = Path.GetFileNameWithoutExtension(exePath)
+                                            });
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 如果是 WeGame 目录，还要检查 games 子目录
+                    if (dirName.Contains("WeGame", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var gamesSubDir = Path.Combine(basePath, "games");
+                        if (Directory.Exists(gamesSubDir))
+                        {
+                            foreach (var gameDir in Directory.GetDirectories(gamesSubDir))
+                            {
+                                var subDirName = Path.GetFileName(gameDir);
+                                if (subDirName.Contains("三角洲") || 
+                                    subDirName.Contains("Delta", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    TryAddDeltaForce(games, gameDir);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // 权限不足等
+                }
+            }
+        }
+        catch
+        {
+            // 忽略扫描错误
+        }
+
+        return games;
+    }
+
+    /// <summary>
+    /// 从注册表获取三角洲行动安装路径
+    /// </summary>
+    private string? GetDeltaForceInstallPathFromRegistry()
+    {
+        string[] registryPaths = 
+        {
+            @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\三角洲行动",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\三角洲行动",
+            @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Delta Force",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Delta Force",
+            @"SOFTWARE\WOW6432Node\Tencent\DeltaForce",
+            @"SOFTWARE\Tencent\DeltaForce",
+            @"SOFTWARE\WOW6432Node\腾讯游戏\三角洲行动",
+            @"SOFTWARE\腾讯游戏\三角洲行动",
+        };
+
+        foreach (var regPath in registryPaths)
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(regPath);
+                if (key != null)
+                {
+                    var path = key.GetValue("InstallLocation")?.ToString() 
+                            ?? key.GetValue("InstallPath")?.ToString()
+                            ?? key.GetValue("Path")?.ToString();
+                    if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                    {
+                        return path;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 尝试添加三角洲行动
+    /// </summary>
+    private void TryAddDeltaForce(List<GameInfo> games, string gameDir)
+    {
+        if (games.Any(g => g.InstallPath.Equals(gameDir, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        // 尝试多种可能的可执行文件名
+        string[] possibleExeNames = 
+        { 
+            "DeltaForce.exe", 
+            "DeltaForce-Win64-Shipping.exe", 
+            "deltaforce.exe",
+            "game.exe",
+            "launcher.exe"
+        };
+
+        foreach (var exeName in possibleExeNames)
+        {
+            var exePath = FindFileRecursive(gameDir, exeName);
+            if (!string.IsNullOrEmpty(exePath))
+            {
+                games.Add(new GameInfo
+                {
+                    Name = "三角洲行动 (Delta Force)",
+                    Platform = GamePlatform.WeGame,
+                    InstallPath = gameDir,
+                    ExecutablePath = exePath,
+                    ProcessName = Path.GetFileNameWithoutExtension(exePath)
+                });
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 扫描网易游戏（永劫无间等）
+    /// </summary>
+    public List<GameInfo> ScanNeteaseGames()
+    {
+        var games = new List<GameInfo>();
+
+        // 网易游戏定义
+        var neteaseGameDefs = new Dictionary<string, string[]>
+        {
+            { "永劫无间", new[] { "NarakaBladepoint.exe", "Naraka.exe" } },
+            { "NARAKA", new[] { "NarakaBladepoint.exe", "Naraka.exe" } },
+            { "逆水寒", new[] { "nshn.exe", "nsh.exe" } },
+            { "天谕", new[] { "ty.exe", "tianyu.exe" } },
+            { "梦幻西游", new[] { "my.exe", "mhxy.exe" } },
+            { "大话西游", new[] { "dhxy.exe", "xy2.exe" } },
+            { "阴阳师", new[] { "onmyoji.exe" } },
+            { "第五人格", new[] { "dwrg.exe", "IdentityV.exe" } },
+            { "荒野行动", new[] { "hyxd.exe" } },
+            { "明日之后", new[] { "mrzh.exe" } },
+        };
+
+        try
+        {
+            // 1. 从注册表查找永劫无间
+            var narakaPath = GetNarakaInstallPathFromRegistry();
+            if (!string.IsNullOrEmpty(narakaPath) && Directory.Exists(narakaPath))
+            {
+                TryAddNaraka(games, narakaPath);
+            }
+
+            // 2. 搜索常见安装路径
+            var searchPaths = new List<string>
+            {
+                // 网易游戏目录
+                @"C:\网易游戏",
+                @"D:\网易游戏",
+                @"E:\网易游戏",
+                @"F:\网易游戏",
+                @"C:\NetEase Games",
+                @"D:\NetEase Games",
+                @"E:\NetEase Games",
+                @"C:\Netease",
+                @"D:\Netease",
+                
+                // 永劫无间常见路径
+                @"C:\永劫无间",
+                @"D:\永劫无间",
+                @"E:\永劫无间",
+                @"C:\NARAKA BLADEPOINT",
+                @"D:\NARAKA BLADEPOINT",
+                @"E:\NARAKA BLADEPOINT",
+                @"C:\Naraka",
+                @"D:\Naraka",
+                
+                // Games 目录
+                @"C:\Games",
+                @"D:\Games",
+                @"E:\Games",
+                @"C:\Program Files\NetEase",
+                @"D:\Program Files\NetEase",
+                @"C:\Program Files (x86)\NetEase",
+            };
+
+            foreach (var basePath in searchPaths.Distinct())
+            {
+                if (!Directory.Exists(basePath)) continue;
+
+                try
+                {
+                    var dirName = Path.GetFileName(basePath);
+                    
+                    // 检查是否直接是游戏目录
+                    if (dirName.Contains("永劫无间") || 
+                        dirName.Contains("NARAKA", StringComparison.OrdinalIgnoreCase) ||
+                        dirName.Contains("Naraka", StringComparison.OrdinalIgnoreCase))
+                    {
+                        TryAddNaraka(games, basePath);
+                        continue;
+                    }
+
+                    // 搜索子目录
+                    foreach (var gameDir in Directory.GetDirectories(basePath))
+                    {
+                        var subDirName = Path.GetFileName(gameDir);
+                        
+                        // 永劫无间
+                        if (subDirName.Contains("永劫无间") || 
+                            subDirName.Contains("NARAKA", StringComparison.OrdinalIgnoreCase) ||
+                            subDirName.Contains("Naraka", StringComparison.OrdinalIgnoreCase))
+                        {
+                            TryAddNaraka(games, gameDir);
+                        }
+                        // 其他网易游戏
+                        else
+                        {
+                            foreach (var (gameName, exeNames) in neteaseGameDefs)
+                            {
+                                if (subDirName.Contains(gameName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    foreach (var exeName in exeNames)
+                                    {
+                                        var exePath = FindFileRecursive(gameDir, exeName);
+                                        if (!string.IsNullOrEmpty(exePath) && 
+                                            !games.Any(g => g.ExecutablePath.Equals(exePath, StringComparison.OrdinalIgnoreCase)))
+                                        {
+                                            games.Add(new GameInfo
+                                            {
+                                                Name = gameName,
+                                                Platform = GamePlatform.Custom,
+                                                InstallPath = gameDir,
+                                                ExecutablePath = exePath,
+                                                ProcessName = Path.GetFileNameWithoutExtension(exePath)
+                                            });
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // 权限不足等
+                }
+            }
+        }
+        catch
+        {
+            // 忽略扫描错误
+        }
+
+        return games;
+    }
+
+    /// <summary>
+    /// 从注册表获取永劫无间安装路径
+    /// </summary>
+    private string? GetNarakaInstallPathFromRegistry()
+    {
+        string[] registryPaths = 
+        {
+            @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\NARAKA BLADEPOINT",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NARAKA BLADEPOINT",
+            @"SOFTWARE\WOW6432Node\NetEase\NARAKA",
+            @"SOFTWARE\NetEase\NARAKA",
+        };
+
+        foreach (var regPath in registryPaths)
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(regPath);
+                if (key != null)
+                {
+                    var path = key.GetValue("InstallLocation")?.ToString() 
+                            ?? key.GetValue("InstallPath")?.ToString()
+                            ?? key.GetValue("Path")?.ToString();
+                    if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                    {
+                        return path;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 尝试添加永劫无间
+    /// </summary>
+    private void TryAddNaraka(List<GameInfo> games, string gameDir)
+    {
+        if (games.Any(g => g.InstallPath.Equals(gameDir, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        var exePath = FindFileRecursive(gameDir, "NarakaBladepoint.exe");
+        if (string.IsNullOrEmpty(exePath))
+        {
+            exePath = FindFileRecursive(gameDir, "Naraka.exe");
+        }
+        if (!string.IsNullOrEmpty(exePath))
+        {
+            games.Add(new GameInfo
+            {
+                Name = "永劫无间 (NARAKA: BLADEPOINT)",
+                Platform = GamePlatform.Custom,
+                InstallPath = gameDir,
+                ExecutablePath = exePath,
+                ProcessName = Path.GetFileNameWithoutExtension(exePath)
+            });
+        }
     }
 
     /// <summary>
@@ -208,8 +804,15 @@ public class GameService
         var installPath = Path.Combine(steamAppsPath, "common", installDir);
         if (!Directory.Exists(installPath)) return null;
 
-        // 尝试找到主要可执行文件
-        var exePath = FindMainExecutable(installPath, name);
+        // 1. 首先尝试从 Steam 本地配置获取可执行文件信息
+        var exePath = GetSteamGameExecutable(steamAppsPath, appId, installPath, name);
+        
+        // 2. 如果没找到，使用智能查找
+        if (string.IsNullOrEmpty(exePath))
+        {
+            exePath = FindMainExecutable(installPath, name);
+        }
+        
         var processName = !string.IsNullOrEmpty(exePath) 
             ? Path.GetFileNameWithoutExtension(exePath) 
             : string.Empty;
@@ -223,6 +826,149 @@ public class GameService
             ExecutablePath = exePath ?? string.Empty,
             ProcessName = processName
         };
+    }
+
+    /// <summary>
+    /// 从 Steam 本地配置获取游戏可执行文件
+    /// </summary>
+    private string? GetSteamGameExecutable(string steamAppsPath, string appId, string installPath, string gameName)
+    {
+        try
+        {
+            // 尝试读取 Steam 的本地配置文件
+            var steamPath = Path.GetDirectoryName(steamAppsPath);
+            if (string.IsNullOrEmpty(steamPath)) return null;
+
+            // 方法1: 检查 appinfo.vdf 解析后的缓存 (Steam 会在 userdata 中保存启动配置)
+            var userdataPath = Path.Combine(steamPath, "userdata");
+            if (Directory.Exists(userdataPath))
+            {
+                foreach (var userDir in Directory.GetDirectories(userdataPath))
+                {
+                    var localConfigPath = Path.Combine(userDir, "config", "localconfig.vdf");
+                    if (File.Exists(localConfigPath))
+                    {
+                        var exePath = ParseSteamLocalConfig(localConfigPath, appId, installPath);
+                        if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                        {
+                            return exePath;
+                        }
+                    }
+                }
+            }
+
+            // 方法2: 检查 Steam 的快捷方式配置
+            var shortcutsVdf = Path.Combine(steamPath, "config", "shortcuts.vdf");
+            if (File.Exists(shortcutsVdf))
+            {
+                var exePath = ParseSteamShortcuts(shortcutsVdf, gameName);
+                if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                {
+                    return exePath;
+                }
+            }
+
+            // 方法3: 在已知游戏数据库中精确匹配
+            if (KnownGameProcesses.TryGetValue(gameName, out var processNames))
+            {
+                foreach (var processName in processNames)
+                {
+                    var exePath = FindFileRecursive(installPath, $"{processName}.exe");
+                    if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                    {
+                        return exePath;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // 忽略解析错误
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 解析 Steam localconfig.vdf 获取游戏启动配置
+    /// </summary>
+    private string? ParseSteamLocalConfig(string configPath, string appId, string installPath)
+    {
+        try
+        {
+            var content = File.ReadAllText(configPath);
+            
+            // 查找对应 AppId 的配置块
+            var appPattern = new Regex($@"""{appId}""[^{{]*\{{([^}}]*(?:\{{[^}}]*\}}[^}}]*)*)\}}", RegexOptions.Singleline);
+            var appMatch = appPattern.Match(content);
+            
+            if (appMatch.Success)
+            {
+                var appContent = appMatch.Groups[1].Value;
+                
+                // 查找 LaunchOptions 中的可执行文件路径
+                var exePattern = new Regex(@"""LaunchOptions""\s+""([^""]+)""");
+                var exeMatch = exePattern.Match(appContent);
+                
+                if (exeMatch.Success)
+                {
+                    var launchOptions = exeMatch.Groups[1].Value;
+                    // 提取可能的 exe 路径
+                    var pathMatch = Regex.Match(launchOptions, @"([A-Za-z]:\\[^\s""]+\.exe|""[^""]+\.exe"")");
+                    if (pathMatch.Success)
+                    {
+                        var exePath = pathMatch.Groups[1].Value.Trim('"');
+                        if (File.Exists(exePath))
+                        {
+                            return exePath;
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // 解析失败
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 解析 Steam shortcuts.vdf
+    /// </summary>
+    private string? ParseSteamShortcuts(string shortcutsPath, string gameName)
+    {
+        try
+        {
+            // shortcuts.vdf 是二进制格式，这里简单处理
+            var content = File.ReadAllBytes(shortcutsPath);
+            var text = System.Text.Encoding.UTF8.GetString(content);
+            
+            var nameClean = Regex.Replace(gameName, @"[^a-zA-Z0-9]", "").ToLower();
+            
+            // 查找游戏名称和对应的 exe 路径
+            var exePattern = new Regex(@"exe[^\x00]*([A-Za-z]:\\[^\x00]+\.exe)", RegexOptions.IgnoreCase);
+            var matches = exePattern.Matches(text);
+            
+            foreach (Match match in matches)
+            {
+                var exePath = match.Groups[1].Value;
+                var exeNameClean = Regex.Replace(Path.GetFileNameWithoutExtension(exePath), @"[^a-zA-Z0-9]", "").ToLower();
+                
+                if (exeNameClean.Contains(nameClean) || nameClean.Contains(exeNameClean))
+                {
+                    if (File.Exists(exePath))
+                    {
+                        return exePath;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // 解析失败
+        }
+        return null;
     }
 
     /// <summary>
@@ -292,7 +1038,51 @@ public class GameService
     }
 
     /// <summary>
-    /// 扫描 Xbox/Microsoft Store 游戏
+    /// Xbox/Microsoft Store 已知游戏白名单（只扫描这些游戏）
+    /// </summary>
+    private static readonly Dictionary<string, string[]> KnownXboxGames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // 微软第一方
+        { "Halo Infinite", new[] { "HaloInfinite" } },
+        { "Forza Horizon 5", new[] { "ForzaHorizon5", "Forza Horizon 5" } },
+        { "Forza Horizon 4", new[] { "ForzaHorizon4", "Forza Horizon 4" } },
+        { "Forza Motorsport", new[] { "ForzaMotorsport" } },
+        { "Microsoft Flight Simulator", new[] { "FlightSimulator", "MicrosoftFlightSimulator" } },
+        { "Sea of Thieves", new[] { "SeaofThieves" } },
+        { "Gears 5", new[] { "Gears5", "GearofWar5" } },
+        { "Gears of War", new[] { "GearsofWar" } },
+        { "Age of Empires IV", new[] { "AgeofEmpiresIV", "Age of Empires IV" } },
+        { "Age of Empires II", new[] { "AgeofEmpiresII" } },
+        { "Age of Empires III", new[] { "AgeofEmpiresIII" } },
+        { "Minecraft", new[] { "Minecraft" } },
+        { "Starfield", new[] { "Starfield" } },
+        { "State of Decay 2", new[] { "StateofDecay2" } },
+        { "Grounded", new[] { "Grounded" } },
+        { "Pentiment", new[] { "Pentiment" } },
+        { "Hi-Fi Rush", new[] { "HiFiRush", "Hi-Fi Rush" } },
+        { "Redfall", new[] { "Redfall" } },
+        
+        // 第三方热门
+        { "Back 4 Blood", new[] { "Back4Blood" } },
+        { "A Plague Tale", new[] { "APlagueTale" } },
+        { "Psychonauts 2", new[] { "Psychonauts2" } },
+        { "Atomic Heart", new[] { "AtomicHeart" } },
+        { "Lies of P", new[] { "LiesofP" } },
+        { "Dead Space", new[] { "DeadSpace" } },
+        { "It Takes Two", new[] { "ItTakesTwo" } },
+        { "Outer Worlds", new[] { "OuterWorlds" } },
+        { "Dishonored", new[] { "Dishonored" } },
+        { "Doom Eternal", new[] { "DoomEternal" } },
+        { "Prey", new[] { "Prey" } },
+        { "Wolfenstein", new[] { "Wolfenstein" } },
+        { "Fallout 76", new[] { "Fallout76" } },
+        { "Fallout 4", new[] { "Fallout4" } },
+        { "Elder Scrolls Online", new[] { "ElderScrollsOnline", "ESO" } },
+        { "Skyrim", new[] { "Skyrim" } },
+    };
+
+    /// <summary>
+    /// 扫描 Xbox/Microsoft Store 游戏 - 使用白名单模式
     /// </summary>
     public List<GameInfo> ScanXboxGames()
     {
@@ -300,13 +1090,13 @@ public class GameService
 
         try
         {
-            // Xbox 游戏通常安装在 WindowsApps 或 XboxGames 目录
+            // Xbox 游戏目录
             var xboxPaths = new[]
             {
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps"),
                 @"C:\XboxGames",
                 @"D:\XboxGames",
-                @"E:\XboxGames"
+                @"E:\XboxGames",
+                @"F:\XboxGames"
             };
 
             foreach (var xboxPath in xboxPaths)
@@ -315,45 +1105,105 @@ public class GameService
 
                 try
                 {
-                    var gameDirs = Directory.GetDirectories(xboxPath);
-                    foreach (var gameDir in gameDirs)
+                    foreach (var gameDir in Directory.GetDirectories(xboxPath))
                     {
-                        // 跳过系统包
                         var dirName = Path.GetFileName(gameDir);
-                        if (dirName.StartsWith("Microsoft.") || 
-                            dirName.StartsWith("Windows.") ||
-                            dirName.Contains("_neutral_"))
-                            continue;
-
-                        var exePath = FindMainExecutable(gameDir, dirName);
-                        if (string.IsNullOrEmpty(exePath)) continue;
-
-                        // 提取游戏名称（去除版本号等）
-                        var name = Regex.Replace(dirName, @"_[\d\.]+_.*$", "");
-                        name = Regex.Replace(name, @"([a-z])([A-Z])", "$1 $2");
-
-                        games.Add(new GameInfo
+                        
+                        // 只匹配白名单中的游戏
+                        foreach (var (gameName, patterns) in KnownXboxGames)
                         {
-                            Name = name,
-                            Platform = GamePlatform.Xbox,
-                            InstallPath = gameDir,
-                            ExecutablePath = exePath,
-                            ProcessName = Path.GetFileNameWithoutExtension(exePath)
-                        });
+                            if (patterns.Any(p => dirName.Contains(p, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                var exePath = FindMainExecutable(gameDir, gameName);
+                                if (!string.IsNullOrEmpty(exePath))
+                                {
+                                    games.Add(new GameInfo
+                                    {
+                                        Name = gameName,
+                                        Platform = GamePlatform.Xbox,
+                                        InstallPath = gameDir,
+                                        ExecutablePath = exePath,
+                                        ProcessName = Path.GetFileNameWithoutExtension(exePath)
+                                    });
+                                }
+                                break;
+                            }
+                        }
                     }
                 }
                 catch
                 {
-                    // 权限不足等情况
+                    // 权限不足
                 }
             }
+
+            // 从注册表扫描已安装的 Xbox 游戏
+            ScanXboxGamesFromRegistry(games);
         }
         catch
         {
-            // 忽略 Xbox 扫描错误
+            // 忽略扫描错误
         }
 
         return games;
+    }
+
+    /// <summary>
+    /// 从注册表扫描 Xbox 游戏
+    /// </summary>
+    private void ScanXboxGamesFromRegistry(List<GameInfo> games)
+    {
+        try
+        {
+            // Xbox 游戏在卸载注册表中
+            using var uninstallKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
+            if (uninstallKey == null) return;
+
+            foreach (var subKeyName in uninstallKey.GetSubKeyNames())
+            {
+                try
+                {
+                    using var subKey = uninstallKey.OpenSubKey(subKeyName);
+                    if (subKey == null) continue;
+
+                    var displayName = subKey.GetValue("DisplayName")?.ToString() ?? "";
+                    var installPath = subKey.GetValue("InstallLocation")?.ToString() ?? "";
+                    var publisher = subKey.GetValue("Publisher")?.ToString() ?? "";
+
+                    if (string.IsNullOrEmpty(displayName) || string.IsNullOrEmpty(installPath)) 
+                        continue;
+                    if (!Directory.Exists(installPath)) 
+                        continue;
+
+                    // 检查是否匹配白名单中的游戏
+                    foreach (var (gameName, patterns) in KnownXboxGames)
+                    {
+                        if (patterns.Any(p => displayName.Contains(p, StringComparison.OrdinalIgnoreCase)) ||
+                            displayName.Contains(gameName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (games.Any(g => g.InstallPath.Equals(installPath, StringComparison.OrdinalIgnoreCase)))
+                                break;
+
+                            var exePath = FindMainExecutable(installPath, gameName);
+                            if (!string.IsNullOrEmpty(exePath))
+                            {
+                                games.Add(new GameInfo
+                                {
+                                    Name = gameName,
+                                    Platform = GamePlatform.Xbox,
+                                    InstallPath = installPath,
+                                    ExecutablePath = exePath,
+                                    ProcessName = Path.GetFileNameWithoutExtension(exePath)
+                                });
+                            }
+                            break;
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
     }
 
     /// <summary>
@@ -728,93 +1578,99 @@ public class GameService
     }
 
     /// <summary>
-    /// 扫描 Riot Games 游戏
+    /// 扫描 Riot Games 和腾讯游戏（英雄联盟国服等）
     /// </summary>
     public List<GameInfo> ScanRiotGames()
     {
         var games = new List<GameInfo>();
 
-        // Riot 游戏定义
-        var riotGames = new Dictionary<string, (string exeName, string[] altPaths)>
-        {
-            { "英雄联盟", ("LeagueClient.exe", new[] { "League of Legends", "英雄联盟" }) },
-            { "VALORANT", ("VALORANT.exe", new[] { "VALORANT", "Valorant" }) },
-            { "云顶之弈", ("LeagueClient.exe", new[] { "Teamfight Tactics" }) },
-            { "Legends of Runeterra", ("LoR.exe", new[] { "LoR", "Legends of Runeterra" }) }
-        };
-
         try
         {
-            // Riot 游戏默认安装路径
-            var riotPaths = new[]
+            // 1. 从注册表查找英雄联盟
+            var lolPath = GetLOLInstallPathFromRegistry();
+            if (!string.IsNullOrEmpty(lolPath) && Directory.Exists(lolPath))
             {
+                var lolExe = FindFileRecursive(lolPath, "LeagueClient.exe");
+                if (!string.IsNullOrEmpty(lolExe))
+                {
+                    games.Add(new GameInfo
+                    {
+                        Name = "英雄联盟 (League of Legends)",
+                        Platform = GamePlatform.Riot,
+                        InstallPath = lolPath,
+                        ExecutablePath = lolExe,
+                        ProcessName = "LeagueClient"
+                    });
+                }
+            }
+
+            // 2. 搜索常见安装路径
+            var searchPaths = new List<string>
+            {
+                // Riot Games 国际服
                 @"C:\Riot Games",
                 @"D:\Riot Games",
                 @"E:\Riot Games",
+                @"F:\Riot Games",
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Riot Games"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Riot Games")
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Riot Games"),
+                
+                // 腾讯游戏目录（国服英雄联盟）
+                @"C:\腾讯游戏",
+                @"D:\腾讯游戏",
+                @"E:\腾讯游戏",
+                @"F:\腾讯游戏",
+                @"C:\Games\腾讯游戏",
+                @"D:\Games\腾讯游戏",
+                @"C:\Program Files\腾讯游戏",
+                @"D:\Program Files\腾讯游戏",
+                @"C:\Program Files (x86)\腾讯游戏",
+                @"D:\Program Files (x86)\腾讯游戏",
+                
+                // Tencent Games
+                @"C:\Tencent Games",
+                @"D:\Tencent Games",
+                @"E:\Tencent Games",
+                
+                // 英雄联盟直接目录
+                @"C:\英雄联盟",
+                @"D:\英雄联盟",
+                @"E:\英雄联盟",
+                @"C:\League of Legends",
+                @"D:\League of Legends",
+                @"E:\League of Legends",
             };
 
-            foreach (var riotPath in riotPaths)
+            foreach (var basePath in searchPaths.Distinct())
             {
-                if (!Directory.Exists(riotPath)) continue;
+                if (!Directory.Exists(basePath)) continue;
 
                 try
                 {
-                    foreach (var gameDir in Directory.GetDirectories(riotPath))
+                    // 检查是否直接是英雄联盟目录
+                    var dirName = Path.GetFileName(basePath);
+                    if (dirName.Contains("英雄联盟") || dirName.Contains("League of Legends", StringComparison.OrdinalIgnoreCase))
                     {
-                        var dirName = Path.GetFileName(gameDir);
+                        TryAddLOL(games, basePath);
+                        continue;
+                    }
+
+                    // 搜索子目录
+                    foreach (var gameDir in Directory.GetDirectories(basePath))
+                    {
+                        var subDirName = Path.GetFileName(gameDir);
                         
-                        // 英雄联盟特殊处理
-                        if (dirName.Contains("League of Legends") || dirName.Contains("英雄联盟"))
+                        // 英雄联盟
+                        if (subDirName.Contains("英雄联盟") || 
+                            subDirName.Contains("League of Legends", StringComparison.OrdinalIgnoreCase) ||
+                            subDirName.Equals("LOL", StringComparison.OrdinalIgnoreCase))
                         {
-                            var lolExe = FindFileRecursive(gameDir, "LeagueClient.exe");
-                            if (!string.IsNullOrEmpty(lolExe))
-                            {
-                                games.Add(new GameInfo
-                                {
-                                    Name = "英雄联盟 (League of Legends)",
-                                    Platform = GamePlatform.Riot,
-                                    InstallPath = gameDir,
-                                    ExecutablePath = lolExe,
-                                    ProcessName = "LeagueClient"
-                                });
-                            }
+                            TryAddLOL(games, gameDir);
                         }
-                        // VALORANT 特殊处理
-                        else if (dirName.Contains("VALORANT", StringComparison.OrdinalIgnoreCase))
+                        // VALORANT
+                        else if (subDirName.Contains("VALORANT", StringComparison.OrdinalIgnoreCase))
                         {
-                            var valExe = FindFileRecursive(gameDir, "VALORANT.exe");
-                            if (string.IsNullOrEmpty(valExe))
-                            {
-                                valExe = FindFileRecursive(gameDir, "VALORANT-Win64-Shipping.exe");
-                            }
-                            if (!string.IsNullOrEmpty(valExe))
-                            {
-                                games.Add(new GameInfo
-                                {
-                                    Name = "VALORANT",
-                                    Platform = GamePlatform.Riot,
-                                    InstallPath = gameDir,
-                                    ExecutablePath = valExe,
-                                    ProcessName = Path.GetFileNameWithoutExtension(valExe)
-                                });
-                            }
-                        }
-                        else
-                        {
-                            var exePath = FindMainExecutable(gameDir, dirName);
-                            if (!string.IsNullOrEmpty(exePath))
-                            {
-                                games.Add(new GameInfo
-                                {
-                                    Name = dirName,
-                                    Platform = GamePlatform.Riot,
-                                    InstallPath = gameDir,
-                                    ExecutablePath = exePath,
-                                    ProcessName = Path.GetFileNameWithoutExtension(exePath)
-                                });
-                            }
+                            TryAddValorant(games, gameDir);
                         }
                     }
                 }
@@ -826,14 +1682,145 @@ public class GameService
         }
         catch
         {
-            // 忽略 Riot 扫描错误
+            // 忽略扫描错误
         }
 
         return games;
     }
 
     /// <summary>
-    /// 扫描 WeGame 游戏
+    /// 从注册表获取英雄联盟安装路径
+    /// </summary>
+    private string? GetLOLInstallPathFromRegistry()
+    {
+        string[] registryPaths = 
+        {
+            @"SOFTWARE\WOW6432Node\Tencent\LOL",
+            @"SOFTWARE\Tencent\LOL",
+            @"SOFTWARE\WOW6432Node\腾讯游戏\英雄联盟",
+            @"SOFTWARE\腾讯游戏\英雄联盟",
+            @"SOFTWARE\Riot Games\League of Legends",
+            @"SOFTWARE\WOW6432Node\Riot Games\League of Legends",
+        };
+
+        foreach (var regPath in registryPaths)
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(regPath);
+                if (key != null)
+                {
+                    var path = key.GetValue("InstallPath")?.ToString() 
+                            ?? key.GetValue("Install_Dir")?.ToString()
+                            ?? key.GetValue("Path")?.ToString();
+                    if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                    {
+                        return path;
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(regPath);
+                if (key != null)
+                {
+                    var path = key.GetValue("InstallPath")?.ToString() 
+                            ?? key.GetValue("Install_Dir")?.ToString()
+                            ?? key.GetValue("Path")?.ToString();
+                    if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                    {
+                        return path;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 尝试添加英雄联盟
+    /// </summary>
+    private void TryAddLOL(List<GameInfo> games, string gameDir)
+    {
+        // 检查是否已添加
+        if (games.Any(g => g.InstallPath.Equals(gameDir, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        var lolExe = FindFileRecursive(gameDir, "LeagueClient.exe");
+        if (!string.IsNullOrEmpty(lolExe))
+        {
+            games.Add(new GameInfo
+            {
+                Name = "英雄联盟 (League of Legends)",
+                Platform = GamePlatform.Riot,
+                InstallPath = gameDir,
+                ExecutablePath = lolExe,
+                ProcessName = "LeagueClient"
+            });
+        }
+    }
+
+    /// <summary>
+    /// 尝试添加 VALORANT
+    /// </summary>
+    private void TryAddValorant(List<GameInfo> games, string gameDir)
+    {
+        if (games.Any(g => g.InstallPath.Equals(gameDir, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        var valExe = FindFileRecursive(gameDir, "VALORANT.exe");
+        if (string.IsNullOrEmpty(valExe))
+        {
+            valExe = FindFileRecursive(gameDir, "VALORANT-Win64-Shipping.exe");
+        }
+        if (!string.IsNullOrEmpty(valExe))
+        {
+            games.Add(new GameInfo
+            {
+                Name = "VALORANT",
+                Platform = GamePlatform.Riot,
+                InstallPath = gameDir,
+                ExecutablePath = valExe,
+                ProcessName = Path.GetFileNameWithoutExtension(valExe)
+            });
+        }
+    }
+
+    /// <summary>
+    /// 需要排除的 WeGame 目录
+    /// WeGame 已知游戏白名单
+    /// </summary>
+    private static readonly Dictionary<string, string[]> KnownWeGameGames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // 腾讯热门游戏
+        { "英雄联盟", new[] { "英雄联盟", "League of Legends", "LOL", "LeagueClient.exe" } },
+        { "穿越火线", new[] { "穿越火线", "CrossFire", "CF", "crossfire.exe" } },
+        { "地下城与勇士", new[] { "地下城与勇士", "DNF", "DNF.exe" } },
+        { "QQ飞车", new[] { "QQ飞车", "QQSpeed", "GameApp.exe" } },
+        { "逆战", new[] { "逆战", "NZ", "nz.exe" } },
+        { "QQ炫舞", new[] { "QQ炫舞", "QQX5", "x5.exe" } },
+        { "使命召唤Online", new[] { "使命召唤Online", "CODOL" } },
+        { "火影忍者", new[] { "火影忍者", "Naruto" } },
+        { "NBA2K Online", new[] { "NBA2K", "NBA2KOL" } },
+        { "FIFA Online", new[] { "FIFA", "FIFAOnline" } },
+        { "三角洲行动", new[] { "三角洲", "Delta Force", "DeltaForce" } },
+        { "怪物猎人OL", new[] { "怪物猎人", "MonsterHunter" } },
+        { "剑灵", new[] { "剑灵", "BladeSoul", "BNS" } },
+        { "天涯明月刀", new[] { "天涯明月刀", "天刀", "Moonlight" } },
+        { "御龙在天", new[] { "御龙在天" } },
+        { "枪神纪", new[] { "枪神纪" } },
+        { "战争雷霆", new[] { "战争雷霆", "WarThunder" } },
+        { "坦克世界", new[] { "坦克世界", "WorldofTanks", "WOT" } },
+        { "战舰世界", new[] { "战舰世界", "WorldofWarships", "WOWS" } },
+        { "刀塔霸业", new[] { "刀塔霸业", "Underlords" } },
+    };
+
+    /// <summary>
+    /// 扫描 WeGame 游戏 - 使用白名单模式
     /// </summary>
     public List<GameInfo> ScanWeGameGames()
     {
@@ -848,11 +1835,13 @@ public class GameService
                 wegamePath = key?.GetValue("InstallPath")?.ToString();
             }
 
-            // 常见 WeGame 游戏目录
+            // 常见 WeGame 目录
             var wegamePaths = new List<string>
             {
+                @"C:\WeGame",
                 @"D:\WeGame",
                 @"E:\WeGame",
+                @"F:\WeGame",
                 @"C:\Program Files (x86)\WeGame",
                 @"D:\Program Files (x86)\WeGame"
             };
@@ -866,49 +1855,66 @@ public class GameService
             {
                 if (!Directory.Exists(basePath)) continue;
 
-                // WeGame 游戏通常在 games 子目录
+                // WeGame 游戏在 games 子目录
                 var gamesDir = Path.Combine(basePath, "games");
-                if (!Directory.Exists(gamesDir))
+                if (Directory.Exists(gamesDir))
                 {
-                    gamesDir = basePath;
+                    ScanWeGameDirectory(games, gamesDir);
                 }
+                
+                // 也扫描根目录
+                ScanWeGameDirectory(games, basePath);
+            }
+        }
+        catch
+        {
+            // 忽略扫描错误
+        }
 
-                try
+        return games;
+    }
+
+    /// <summary>
+    /// 扫描 WeGame 目录 - 只匹配白名单游戏
+    /// </summary>
+    private void ScanWeGameDirectory(List<GameInfo> games, string directory)
+    {
+        try
+        {
+            foreach (var gameDir in Directory.GetDirectories(directory))
+            {
+                var dirName = Path.GetFileName(gameDir);
+                
+                // 只匹配白名单中的游戏
+                foreach (var (gameName, patterns) in KnownWeGameGames)
                 {
-                    foreach (var gameDir in Directory.GetDirectories(gamesDir))
+                    if (patterns.Any(p => dirName.Contains(p, StringComparison.OrdinalIgnoreCase)))
                     {
-                        var dirName = Path.GetFileName(gameDir);
-                        
-                        // 跳过 WeGame 自身
-                        if (dirName.Equals("wegame", StringComparison.OrdinalIgnoreCase)) continue;
-                        if (dirName.Equals("downloads", StringComparison.OrdinalIgnoreCase)) continue;
+                        // 避免重复
+                        if (games.Any(g => g.InstallPath.Equals(gameDir, StringComparison.OrdinalIgnoreCase)))
+                            break;
 
-                        var exePath = FindMainExecutable(gameDir, dirName);
+                        var exePath = FindMainExecutable(gameDir, gameName);
                         if (!string.IsNullOrEmpty(exePath))
                         {
                             games.Add(new GameInfo
                             {
-                                Name = dirName,
+                                Name = gameName,
                                 Platform = GamePlatform.WeGame,
                                 InstallPath = gameDir,
                                 ExecutablePath = exePath,
                                 ProcessName = Path.GetFileNameWithoutExtension(exePath)
                             });
                         }
+                        break;
                     }
-                }
-                catch
-                {
-                    // 权限不足等
                 }
             }
         }
         catch
         {
-            // 忽略 WeGame 扫描错误
+            // 权限不足
         }
-
-        return games;
     }
 
     /// <summary>
@@ -928,7 +1934,7 @@ public class GameService
     }
 
     /// <summary>
-    /// 查找主要可执行文件
+    /// 查找主要可执行文件 - 使用智能评分系统
     /// </summary>
     private string? FindMainExecutable(string installPath, string gameName)
     {
@@ -936,39 +1942,22 @@ public class GameService
         {
             if (!Directory.Exists(installPath)) return null;
 
-            // 获取所有 exe 文件
-            var exeFiles = Directory.GetFiles(installPath, "*.exe", SearchOption.AllDirectories)
-                .Where(f => !IsSystemExecutable(f))
-                .ToList();
+            // 首先检查是否有已知的游戏进程名
+            var knownExe = FindKnownGameExecutable(installPath, gameName);
+            if (knownExe != null) return knownExe;
 
+            // 获取所有 exe 文件（限制搜索深度以提高性能）
+            var exeFiles = GetExecutableFiles(installPath, maxDepth: 3);
             if (exeFiles.Count == 0) return null;
 
-            // 优先匹配游戏名称
-            var nameClean = Regex.Replace(gameName, @"[^a-zA-Z0-9]", "").ToLower();
-            var matchedExe = exeFiles.FirstOrDefault(f =>
-            {
-                var exeName = Path.GetFileNameWithoutExtension(f).ToLower();
-                exeName = Regex.Replace(exeName, @"[^a-zA-Z0-9]", "");
-                return exeName.Contains(nameClean) || nameClean.Contains(exeName);
-            });
+            // 对每个可执行文件进行评分
+            var scoredExes = exeFiles
+                .Select(f => new { Path = f, Score = ScoreExecutable(f, gameName, installPath) })
+                .Where(x => x.Score > 0)
+                .OrderByDescending(x => x.Score)
+                .ToList();
 
-            if (matchedExe != null) return matchedExe;
-
-            // 排除常见的非游戏可执行文件
-            var gameExe = exeFiles.FirstOrDefault(f =>
-            {
-                var name = Path.GetFileName(f).ToLower();
-                return !name.Contains("unins") &&
-                       !name.Contains("setup") &&
-                       !name.Contains("install") &&
-                       !name.Contains("crash") &&
-                       !name.Contains("report") &&
-                       !name.Contains("launcher") &&
-                       !name.Contains("updater") &&
-                       !name.Contains("redist");
-            });
-
-            return gameExe ?? exeFiles.FirstOrDefault();
+            return scoredExes.FirstOrDefault()?.Path;
         }
         catch
         {
@@ -977,17 +1966,273 @@ public class GameService
     }
 
     /// <summary>
+    /// 查找已知游戏的可执行文件
+    /// </summary>
+    private string? FindKnownGameExecutable(string installPath, string gameName)
+    {
+        // 在已知游戏数据库中查找
+        foreach (var (knownName, processNames) in KnownGameProcesses)
+        {
+            // 模糊匹配游戏名称
+            if (FuzzyMatch(gameName, knownName))
+            {
+                foreach (var processName in processNames)
+                {
+                    var exePath = FindFileRecursive(installPath, $"{processName}.exe");
+                    if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                    {
+                        return exePath;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 模糊匹配游戏名称
+    /// </summary>
+    private bool FuzzyMatch(string name1, string name2)
+    {
+        var clean1 = Regex.Replace(name1, @"[^a-zA-Z0-9\u4e00-\u9fa5]", "").ToLower();
+        var clean2 = Regex.Replace(name2, @"[^a-zA-Z0-9\u4e00-\u9fa5]", "").ToLower();
+        
+        return clean1.Contains(clean2) || clean2.Contains(clean1) ||
+               LevenshteinSimilarity(clean1, clean2) > 0.7;
+    }
+
+    /// <summary>
+    /// 计算 Levenshtein 相似度
+    /// </summary>
+    private double LevenshteinSimilarity(string s1, string s2)
+    {
+        if (string.IsNullOrEmpty(s1) || string.IsNullOrEmpty(s2))
+            return 0;
+            
+        var maxLen = Math.Max(s1.Length, s2.Length);
+        if (maxLen == 0) return 1;
+        
+        var distance = LevenshteinDistance(s1, s2);
+        return 1.0 - (double)distance / maxLen;
+    }
+
+    /// <summary>
+    /// 计算 Levenshtein 距离
+    /// </summary>
+    private int LevenshteinDistance(string s1, string s2)
+    {
+        var m = s1.Length;
+        var n = s2.Length;
+        var dp = new int[m + 1, n + 1];
+
+        for (var i = 0; i <= m; i++) dp[i, 0] = i;
+        for (var j = 0; j <= n; j++) dp[0, j] = j;
+
+        for (var i = 1; i <= m; i++)
+        {
+            for (var j = 1; j <= n; j++)
+            {
+                var cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
+                dp[i, j] = Math.Min(
+                    Math.Min(dp[i - 1, j] + 1, dp[i, j - 1] + 1),
+                    dp[i - 1, j - 1] + cost);
+            }
+        }
+        return dp[m, n];
+    }
+
+    /// <summary>
+    /// 获取可执行文件（限制搜索深度）
+    /// </summary>
+    private List<string> GetExecutableFiles(string path, int maxDepth)
+    {
+        var result = new List<string>();
+        try
+        {
+            SearchDirectory(path, 0, maxDepth, result);
+        }
+        catch
+        {
+            // 忽略访问错误
+        }
+        return result;
+    }
+
+    private void SearchDirectory(string path, int currentDepth, int maxDepth, List<string> result)
+    {
+        if (currentDepth > maxDepth) return;
+
+        try
+        {
+            // 获取当前目录的 exe 文件
+            var files = Directory.GetFiles(path, "*.exe");
+            result.AddRange(files);
+
+            // 递归子目录
+            if (currentDepth < maxDepth)
+            {
+                foreach (var dir in Directory.GetDirectories(path))
+                {
+                    var dirName = Path.GetFileName(dir).ToLower();
+                    // 跳过一些明显不包含游戏的目录
+                    if (dirName is "_redist" or "redist" or "redistrib" or 
+                        "__installer" or "directx" or "vcredist" or 
+                        "support" or "docs" or "documentation" or
+                        "localization" or "languages" or "logs")
+                        continue;
+                    
+                    SearchDirectory(dir, currentDepth + 1, maxDepth, result);
+                }
+            }
+        }
+        catch
+        {
+            // 权限不足等情况
+        }
+    }
+
+    /// <summary>
+    /// 对可执行文件进行评分
+    /// </summary>
+    private int ScoreExecutable(string exePath, string gameName, string installPath)
+    {
+        var score = 0;
+        var fileName = Path.GetFileName(exePath).ToLower();
+        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(exePath).ToLower();
+        var relativePath = exePath.Substring(installPath.Length).TrimStart(Path.DirectorySeparatorChar).ToLower();
+
+        // 1. 排除系统/工具可执行文件 (-1000 分直接排除)
+        if (ExcludedExeKeywords.Any(k => fileName.Contains(k)))
+        {
+            return -1000;
+        }
+
+        // 2. 名称匹配加分 (+200)
+        var nameClean = Regex.Replace(gameName, @"[^a-zA-Z0-9]", "").ToLower();
+        var exeNameClean = Regex.Replace(fileNameWithoutExt, @"[^a-zA-Z0-9]", "");
+        if (!string.IsNullOrEmpty(nameClean) && !string.IsNullOrEmpty(exeNameClean))
+        {
+            if (exeNameClean.Contains(nameClean) || nameClean.Contains(exeNameClean))
+            {
+                score += 200;
+            }
+            else if (LevenshteinSimilarity(exeNameClean, nameClean) > 0.5)
+            {
+                score += 100;
+            }
+        }
+
+        // 3. 优先关键词加分 (+50 每个)
+        foreach (var keyword in PreferredExeKeywords)
+        {
+            if (fileName.Contains(keyword))
+            {
+                score += 50;
+            }
+        }
+
+        // 4. 文件位置评分 - 根目录或 bin 目录的文件更可能是主程序
+        var pathParts = relativePath.Split(Path.DirectorySeparatorChar);
+        if (pathParts.Length == 1)
+        {
+            score += 100; // 在根目录
+        }
+        else if (pathParts.Length == 2 && 
+                 (pathParts[0] is "bin" or "binaries" or "game" or "x64" or "win64"))
+        {
+            score += 80; // 在 bin 类目录下
+        }
+        else if (pathParts.Length > 3)
+        {
+            score -= 30; // 嵌套太深的减分
+        }
+
+        // 5. 文件大小评分 - 游戏主程序通常较大
+        try
+        {
+            var fileInfo = new FileInfo(exePath);
+            var sizeMB = fileInfo.Length / (1024.0 * 1024.0);
+            
+            if (sizeMB > 100)
+                score += 80;  // 大型游戏
+            else if (sizeMB > 50)
+                score += 60;
+            else if (sizeMB > 20)
+                score += 40;
+            else if (sizeMB > 5)
+                score += 20;
+            else if (sizeMB < 1)
+                score -= 20;  // 太小的可能是工具
+        }
+        catch
+        {
+            // 无法获取大小
+        }
+
+        // 6. 检查是否有版本信息 - 正规游戏通常有版本信息
+        try
+        {
+            var versionInfo = FileVersionInfo.GetVersionInfo(exePath);
+            if (!string.IsNullOrEmpty(versionInfo.ProductName))
+            {
+                score += 30;
+                
+                // 如果产品名称匹配游戏名称，大加分
+                var productClean = Regex.Replace(versionInfo.ProductName, @"[^a-zA-Z0-9]", "").ToLower();
+                if (!string.IsNullOrEmpty(productClean) && 
+                    (productClean.Contains(nameClean) || nameClean.Contains(productClean)))
+                {
+                    score += 150;
+                }
+            }
+            if (!string.IsNullOrEmpty(versionInfo.CompanyName))
+            {
+                score += 20;
+                
+                // 知名游戏公司加分
+                var company = versionInfo.CompanyName.ToLower();
+                if (company.Contains("valve") || company.Contains("epic") || 
+                    company.Contains("ubisoft") || company.Contains("ea ") ||
+                    company.Contains("blizzard") || company.Contains("riot") ||
+                    company.Contains("rockstar") || company.Contains("bethesda") ||
+                    company.Contains("capcom") || company.Contains("sega") ||
+                    company.Contains("bandai") || company.Contains("konami") ||
+                    company.Contains("square enix") || company.Contains("mihoyo") ||
+                    company.Contains("cd projekt"))
+                {
+                    score += 50;
+                }
+            }
+        }
+        catch
+        {
+            // 无法获取版本信息
+        }
+
+        // 7. 特殊规则 - 某些特定命名模式
+        if (fileName.EndsWith("-win64-shipping.exe"))
+        {
+            score += 100; // Unreal Engine 游戏的典型命名
+        }
+        if (fileName.Contains("_x64.exe") || fileName.Contains("-x64.exe"))
+        {
+            score += 30; // 64位版本通常是主程序
+        }
+        if (fileName == "game.exe" || fileName == "play.exe" || fileName == "start.exe")
+        {
+            score += 80;
+        }
+
+        return score;
+    }
+
+    /// <summary>
     /// 判断是否为系统可执行文件
     /// </summary>
     private bool IsSystemExecutable(string path)
     {
         var name = Path.GetFileName(path).ToLower();
-        var systemNames = new[]
-        {
-            "unins", "setup", "install", "vcredist", "dxsetup",
-            "dotnet", "ue4prereq", "physx", "directx"
-        };
-        return systemNames.Any(s => name.Contains(s));
+        return ExcludedExeKeywords.Any(k => name.Contains(k));
     }
 
     /// <summary>

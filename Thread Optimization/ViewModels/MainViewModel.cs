@@ -19,12 +19,10 @@ public partial class MainViewModel : ObservableObject
     private readonly CpuService _cpuService;
     private readonly ProcessService _processService;
     private readonly AffinityService _affinityService;
-    private readonly MonitorService _monitorService;
     private readonly GameService _gameService;
     private readonly NumaService _numaService;
     private readonly DispatcherTimer _autoScanTimer;
     private readonly DispatcherTimer _statsTimer;
-    private readonly DispatcherTimer _monitorTimer;
     private AppConfig _config;
 
     [ObservableProperty]
@@ -108,31 +106,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private ProfileConfig? _selectedProfile;
 
-    // ===== 监控增强属性 =====
-    [ObservableProperty]
-    private float _totalCpuUsage;
-
-    [ObservableProperty]
-    private string _cpuUsageText = "0%";
-
-    [ObservableProperty]
-    private string _cpuFrequencyText = "N/A";
-
-    [ObservableProperty]
-    private string _cpuTemperatureText = "N/A";
-
-    [ObservableProperty]
-    private string _memoryUsageText = "N/A";
-
-    [ObservableProperty]
-    private double _memoryUsagePercent;
-
-    [ObservableProperty]
-    private bool _enableRealtimeMonitor = true;
-
-    [ObservableProperty]
-    private bool _showPerCoreUsage = true;
-
     // ===== 多进程管理属性 =====
     [ObservableProperty]
     private ProcessGroup? _selectedProcessGroup;
@@ -188,7 +161,6 @@ public partial class MainViewModel : ObservableObject
         _cpuService = new CpuService();
         _processService = new ProcessService();
         _affinityService = new AffinityService(_processService);
-        _monitorService = new MonitorService();
         _gameService = new GameService(_processService);
         _numaService = new NumaService();
         _config = AppConfig.Load();
@@ -199,9 +171,6 @@ public partial class MainViewModel : ObservableObject
         _statsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _statsTimer.Tick += StatsTimer_Tick;
 
-        _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(_config.MonitorRefreshInterval) };
-        _monitorTimer.Tick += MonitorTimer_Tick;
-
         InitializeCpuInfo();
         InitializePresets();
         InitializeNuma();
@@ -211,12 +180,6 @@ public partial class MainViewModel : ObservableObject
         LoadProcessGroups();
         LoadGames();
         UpdateSelectedCoreCount();
-
-        // 启动实时监控
-        if (_config.EnableRealtimeMonitor)
-        {
-            _monitorTimer.Start();
-        }
 
         if (_config.AutoApplyOnStart && !string.IsNullOrEmpty(TargetProcessName))
         {
@@ -235,65 +198,6 @@ public partial class MainViewModel : ObservableObject
             var elapsed = DateTime.Now - stats.StartTime;
             RunTimeText = elapsed.ToString(@"hh\:mm\:ss");
             ApplyCount = stats.ApplyCount;
-        }
-    }
-
-    /// <summary>
-    /// 实时监控定时器回调
-    /// </summary>
-    private async void MonitorTimer_Tick(object? sender, EventArgs e)
-    {
-        // 在后台线程执行耗时的监控操作
-        await Task.Run(() =>
-        {
-            UpdateCpuMonitorDataAsync();
-        });
-    }
-
-    /// <summary>
-    /// 更新CPU监控数据（后台线程安全）
-    /// </summary>
-    private void UpdateCpuMonitorDataAsync()
-    {
-        try
-        {
-            // 总CPU使用率
-            var totalUsage = _monitorService.GetTotalCpuUsage();
-            
-            // 每核心使用率（可选，性能开销大）
-            float[]? perCoreUsage = null;
-            if (ShowPerCoreUsage)
-            {
-                perCoreUsage = _monitorService.GetPerCoreUsage();
-            }
-
-            // CPU频率（缓存，减少WMI查询）
-            var freqInfo = _monitorService.GetCpuFrequency();
-
-            // 内存使用
-            var memInfo = _monitorService.GetSystemMemory();
-
-            // 在UI线程更新
-            Application.Current.Dispatcher.BeginInvoke(() =>
-            {
-                TotalCpuUsage = totalUsage;
-                CpuUsageText = $"{totalUsage:F0}%";
-                CpuFrequencyText = freqInfo.DisplayText;
-                MemoryUsageText = memInfo.DisplayText;
-                MemoryUsagePercent = memInfo.UsagePercent;
-                
-                if (perCoreUsage != null)
-                {
-                    for (int i = 0; i < Math.Min(perCoreUsage.Length, Cores.Count); i++)
-                    {
-                        Cores[i].Usage = perCoreUsage[i];
-                    }
-                }
-            }, DispatcherPriority.Background);
-        }
-        catch
-        {
-            // 忽略监控错误
         }
     }
 
@@ -468,9 +372,6 @@ public partial class MainViewModel : ObservableObject
             };
             ProcessGroups.Add(group);
         }
-
-        EnableRealtimeMonitor = _config.EnableRealtimeMonitor;
-        ShowPerCoreUsage = _config.ShowPerCoreUsage;
     }
 
     /// <summary>
@@ -494,8 +395,6 @@ public partial class MainViewModel : ObservableObject
                 CreatedAt = group.CreatedAt
             });
         }
-        _config.EnableRealtimeMonitor = EnableRealtimeMonitor;
-        _config.ShowPerCoreUsage = ShowPerCoreUsage;
         _config.Save();
     }
 
@@ -1240,35 +1139,6 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ToggleRealtimeMonitor()
-    {
-        EnableRealtimeMonitor = !EnableRealtimeMonitor;
-        
-        if (EnableRealtimeMonitor)
-        {
-            _monitorTimer.Start();
-            LogMessage = "已启用实时监控";
-        }
-        else
-        {
-            _monitorTimer.Stop();
-            LogMessage = "已禁用实时监控";
-        }
-        
-        _config.EnableRealtimeMonitor = EnableRealtimeMonitor;
-        _config.Save();
-    }
-
-    [RelayCommand]
-    private void TogglePerCoreUsage()
-    {
-        ShowPerCoreUsage = !ShowPerCoreUsage;
-        _config.ShowPerCoreUsage = ShowPerCoreUsage;
-        _config.Save();
-        LogMessage = ShowPerCoreUsage ? "显示每核心使用率" : "隐藏每核心使用率";
-    }
-
-    [RelayCommand]
     private void ImportConfig()
     {
         var dialog = new OpenFileDialog
@@ -1598,9 +1468,7 @@ public partial class MainViewModel : ObservableObject
     {
         _autoScanTimer.Stop();
         _statsTimer.Stop();
-        _monitorTimer.Stop();
         _affinityService.StopMonitoring();
-        _monitorService.Dispose();
         _gameService.StopGameMonitor();
         _gameService.SaveGames();
         SaveConfig();

@@ -30,12 +30,37 @@ public class TrayService : IDisposable
     {
         _notifyIcon = new NotifyIcon
         {
-            Text = "Test - CPU 核心调度工具",
-            Visible = false
+            Text = "Thread Optimization - CPU 核心调度工具",
+            Visible = true  // 启动时就显示托盘图标
         };
 
-        // 使用系统图标
-        _notifyIcon.Icon = SystemIcons.Application;
+        // 尝试加载自定义图标
+        try
+        {
+            var iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+            if (System.IO.File.Exists(iconPath))
+            {
+                _notifyIcon.Icon = new Icon(iconPath);
+            }
+            else
+            {
+                // 从嵌入资源加载
+                var uri = new Uri("pack://application:,,,/Assets/app.ico");
+                var stream = System.Windows.Application.GetResourceStream(uri)?.Stream;
+                if (stream != null)
+                {
+                    _notifyIcon.Icon = new Icon(stream);
+                }
+                else
+                {
+                    _notifyIcon.Icon = SystemIcons.Application;
+                }
+            }
+        }
+        catch
+        {
+            _notifyIcon.Icon = SystemIcons.Application;
+        }
 
         // 创建右键菜单
         var contextMenu = new ContextMenuStrip();
