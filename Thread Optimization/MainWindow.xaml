@@ -553,7 +553,7 @@
                                             <TextBlock FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,0">
                                                 <Run Text="{Binding ProcessName}"/>
                                                 <Run Text=" | "/>
-                                                <Run Text="{Binding SelectedCoreIndices.Count}"/>
+                                                <Run Text="{Binding SelectedCoreIndices.Count, Mode=OneWay}"/>
                                                 <Run Text="核心"/>
                                             </TextBlock>
                                         </StackPanel>
